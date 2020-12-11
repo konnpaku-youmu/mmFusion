@@ -1,0 +1,9 @@
+.vscode
+.empty
+build
+**/__pycache__
+thirdparty/**/data/coco**
+thirdparty/**/weights
+**/*.weights
+**/*.pt
+**/*.caffemodel

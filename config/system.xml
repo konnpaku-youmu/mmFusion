@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opencv_storage>
+  <Camera>
+    <install>
+      <height>2.09</height>
+      <pitch>-20.77</pitch>
+    </install>
+    <calib>
+      <frameNum>10</frameNum>
+      <pattern>"Chessboard"</pattern>
+      <width>9</width>
+      <height>6</height>
+      <spacing>0.035</spacing>
+      <dataSource>
+        <type>stream</type>
+        <uri>rtsp://admin:zzj0421135@192.168.1.108</uri>
+      </dataSource>
+      <savePath>"/home/hcrd/Projects/mmFusion/config/cam_calib.xml"</savePath>
+    </calib>
+    <perceptionConfig>
+      <YOLOPath>
+        <cfg>"/home/hcrd/Projects/mmFusion/config/yolov3.cfg"</cfg>
+        <weights>"/home/hcrd/Projects/mmFusion/config/yolov3.weights"</weights>
+        <names>"/home/hcrd/Projects/mmFusion/config/coco.names"</names>
+      </YOLOPath>
+      <classFilter>
+        <enable>1</enable>
+        <obj>"person"</obj>
+        <obj>"car"</obj>
+        <obj>"bus"</obj>
+        <obj>"truck"</obj>
+      </classFilter>
+    </perceptionConfig>
+  </Camera>
+  <Radar></Radar>
+</opencv_storage>
