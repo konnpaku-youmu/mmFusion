@@ -7,6 +7,7 @@ namespace mmfusion
 {
     struct SystemConf
     {
+        // camera related
         std::string device;
         double camera_height;
         double camera_pitch;
@@ -21,6 +22,13 @@ namespace mmfusion
         std::vector<cv::Scalar> class_colors;
         std::vector<int> valid_classes;
 
+        // mmWave related
+        std::string cmd_port;
+        int baud_rate;
+        std::vector<std::string> cmd_list;
+        
+        // DCA1000 related
+        
         SystemConf(const std::string &);
     };
 

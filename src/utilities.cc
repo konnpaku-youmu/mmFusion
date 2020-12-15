@@ -77,6 +77,27 @@ namespace mmfusion
                 this->class_colors.push_back(color);
             }
 
+            cfg["mmWave"]["radar"]["commandPort"] >> this->cmd_port;
+            cfg["mmWave"]["radar"]["baudRate"] >> this->baud_rate;
+
+            std::string mmwave_profile;
+            cfg["mmWave"]["radar"]["profileCfg"] >> mmwave_profile;
+            std::ifstream profile_config(mmwave_profile);
+
+            std::string command;
+            while (std::getline(profile_config, command))
+            {
+                if (command.front() == '%')
+                {
+                    continue;
+                }
+                
+                std::stringstream cmd;
+                cmd << command << "\r\n";
+                this->cmd_list.push_back(cmd.str());
+            }
+            profile_config.close();
+
             cfg.release();
         }
         catch (const std::exception &e)

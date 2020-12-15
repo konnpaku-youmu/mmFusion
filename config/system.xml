@@ -13,7 +13,7 @@
       <spacing>0.035</spacing>
       <dataSource>
         <type>stream</type>
-        <uri>rtsp://admin:zzj0421135@192.168.1.108</uri>
+        <uri>rtsp://admin:zzj0421135@192.168.33.108</uri>
       </dataSource>
       <savePath>"/home/hcrd/Projects/mmFusion/config/cam_calib.xml"</savePath>
     </calib>
@@ -32,5 +32,14 @@
       </classFilter>
     </perceptionConfig>
   </Camera>
-  <Radar></Radar>
+  <mmWave>
+    <radar>
+      <commandPort>"/dev/ttyACM0"</commandPort>
+      <baudRate>115200</baudRate>
+      <profileCfg>"/home/hcrd/Projects/mmFusion/config/6843_profile.cfg"</profileCfg>
+    </radar>
+    <DCA1000>
+
+    </DCA1000>
+  </mmWave>
 </opencv_storage>
