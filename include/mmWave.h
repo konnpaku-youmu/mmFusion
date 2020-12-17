@@ -2,7 +2,7 @@
 #define MMWAVE_H
 
 #include <boost/asio.hpp>
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include "utilities.h"
 
 namespace mmfusion
@@ -12,11 +12,7 @@ namespace mmfusion
     private:
         mmfusion::SystemConf *_cfg;
 
-        boost::asio::io_service _io;
-
         boost::asio::serial_port *_cmd_port_ptr;
-
-        void _async_serial_handle(char *, boost::system::error_code, size_t);
 
     public:
         Radar(mmfusion::SystemConf &);

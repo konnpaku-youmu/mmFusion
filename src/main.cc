@@ -1,5 +1,5 @@
 #include "cam_calib.h"
-// #include "inference.h"
+#include "inference.h"
 #include "mmWave.h"
 
 int main(int argc, char **argv)

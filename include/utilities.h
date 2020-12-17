@@ -1,3 +1,6 @@
+#ifndef UTIL_H
+#define UTIL_H
+
 #include <iostream>
 #include <fstream>
 #include <signal.h>
@@ -43,3 +46,5 @@ namespace mmfusion
 
     void padding(cv::Mat &, cv::Mat &);
 } // namespace mmfusion
+
+#endif
