@@ -7,6 +7,17 @@ int main(int argc, char **argv)
     mmfusion::SystemConf cfg("/home/hcrd/Projects/mmFusion/config/system.xml");
 
     mmfusion::Radar radar(cfg);
+    
+    radar.configure();
+
+    for(;;)
+    {
+        if(std::getchar() == ' ')
+        {
+            radar.toggle();
+        }
+    }
+    
     // if (cfg.camera_mat.empty() || cfg.dist_coeffs.empty() || std::strcmp(cfg.device.c_str(), "none") == 0)
     // {
     //     std::cout << "Calibration not found or corrupted..." << std::endl;

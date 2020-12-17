@@ -82,6 +82,20 @@ namespace mmfusion
 
             std::string mmwave_profile;
             cfg["mmWave"]["radar"]["profileCfg"] >> mmwave_profile;
+
+            if (mmwave_profile.find("6843"))
+            {
+                this->radar_model = "IWR6843";
+            }
+            else if (mmwave_profile.find("1642"))
+            {
+                this->radar_model = "IWR1642";
+            }
+            else
+            {
+                this->radar_model = "UNDEFINED";
+            }
+
             std::ifstream profile_config(mmwave_profile);
 
             std::string command;
@@ -91,11 +105,14 @@ namespace mmfusion
                 {
                     continue;
                 }
-                
+
                 std::stringstream cmd;
                 cmd << command << "\r\n";
                 this->cmd_list.push_back(cmd.str());
             }
+
+            // add sensorStop as final command
+            this->cmd_list.push_back("sensorStop\r\n");
             profile_config.close();
 
             cfg.release();
@@ -146,4 +163,33 @@ namespace mmfusion
 
         return;
     }
+
+    void waitBeforeContinue()
+    {
+        char yn;
+        yn = std::getchar();
+
+        std::cerr << "\033[1;31m";
+        switch (yn)
+        {
+        case '\n':
+            break;
+        case 'Y':
+            break;
+        case 'y':
+            break;
+        case 'n':
+            std::cerr << "Abort!" << std::endl;
+            raise(SIGINT);
+            break;
+        default:
+            std::cerr << "Invalid input. Abort!" << std::endl;
+            raise(SIGINT);
+            break;
+        }
+        std::cerr << "\033[0m";
+        
+        return;
+    }
+
 } // namespace mmfusion

@@ -39,7 +39,6 @@
       <profileCfg>"/home/hcrd/Projects/mmFusion/config/6843_profile.cfg"</profileCfg>
     </radar>
     <DCA1000>
-
     </DCA1000>
   </mmWave>
 </opencv_storage>

@@ -8,6 +8,14 @@
 
 namespace mmfusion
 {
+    enum deviceStatus
+    {
+        INIT,
+        CONFIGURED,
+        RUNNING,
+        FAILED   
+    };
+
     struct SystemConf
     {
         // camera related
@@ -26,6 +34,7 @@ namespace mmfusion
         std::vector<int> valid_classes;
 
         // mmWave related
+        std::string radar_model;
         std::string cmd_port;
         int baud_rate;
         std::vector<std::string> cmd_list;
@@ -41,7 +50,9 @@ namespace mmfusion
         float confidence = -1;
         cv::Rect bbox;
     };
-    
+
+    void waitBeforeContinue();
+
     int argmax(cv::Mat1d);
 
     void padding(cv::Mat &, cv::Mat &);
