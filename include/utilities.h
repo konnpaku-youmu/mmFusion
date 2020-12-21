@@ -40,10 +40,46 @@ namespace mmfusion
         std::vector<std::string> cmd_list;
         
         // DCA1000 related
+        std::string dca_addr;
+        int dca_data_port;
+        int dca_cmd_port;
         
         SystemConf(const std::string &);
     };
 
+    class MultiThreading
+    {
+    private:
+        pthread_t _thread;
+
+        static void *_internal_thread_entry(void *);
+
+    protected:
+        pthread_mutex_t _mutex;
+
+        virtual void entryPoint() = 0;
+
+    public:
+        MultiThreading() {}
+
+        bool startThread(pthread_attr_t &);
+
+        void stopThread();
+    };
+
+    class Device
+    {
+    protected:
+        mmfusion::SystemConf *_cfg;
+
+        mmfusion::deviceStatus _status;
+    
+    public:
+        Device() {}
+
+        virtual void configure() = 0;
+    };
+    
     struct DetectedObj
     {
         int classID = -1;

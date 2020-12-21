@@ -2,10 +2,11 @@
 
 namespace mmfusion
 {
-    Radar::Radar(mmfusion::SystemConf &cfg)
+    Radar::Radar(mmfusion::SystemConf &cfg, pthread_mutex_t &mut)
     {
         this->_cfg = &cfg;
         this->_status = mmfusion::deviceStatus::INIT;
+        this->_mutex = mut;
 
         this->_display_properties();
     }
@@ -73,10 +74,9 @@ namespace mmfusion
                 mmfusion::waitBeforeContinue();
             }
 
-            this->_write_to_serial(cmd);
-
             std::string response;
-            this->_read_from_serial(response);
+            assert(!this->_write_to_serial(cmd));
+            assert(!this->_read_from_serial(response));
             std::cout << response << std::endl;
 
             usleep(100000);
@@ -87,21 +87,65 @@ namespace mmfusion
         return;
     }
 
+    void Radar::entryPoint()
+    {
+        for(;;)
+        {
+            if(std::getchar() == '\n')
+            {
+                this->toggle();
+            }
+        }
+    }
+
+    void Radar::sensorStart()
+    {
+        std::string cmd = "sensorStart 0\r\n";
+        std::string response;
+        this->_write_to_serial(cmd);
+        this->_read_from_serial(response);
+        std::cout << response;
+        
+        if(response.find("Done"))
+        {
+            std::cout << "start" << std::endl;
+        }
+
+        return;
+    }
+
+    void Radar::sensorStop()
+    {
+        std::string cmd = "sensorStop\r\n";
+        std::string response;
+        this->_write_to_serial(cmd);
+        this->_read_from_serial(response);
+        std::cout << response;
+
+        if(response.find("Done") == std::string::npos)
+        {
+            std::cout << "stop" << std::endl;
+        }
+
+        return;
+    }
+
     void Radar::toggle()
     {
         std::string cmd;
-
+        std::string response;
         switch (this->_status)
         {
         case mmfusion::deviceStatus::CONFIGURED:
-            cmd = "sensorStart 0\r\n";
-            this->_write_to_serial(cmd);
+            this->sensorStart();
             this->_status = RUNNING;
             break;
         case mmfusion::deviceStatus::RUNNING:
             cmd = "sensorStop\r\n";
             this->_write_to_serial(cmd);
             this->_status = CONFIGURED;
+            this->_read_from_serial(response);
+            std::cout << response;
             break;
         default:
             break;
@@ -140,4 +184,55 @@ namespace mmfusion
 
         return ec;
     }
+
+    DCA1000::DCA1000(mmfusion::SystemConf &cfg)
+    {
+        this->_cfg = &cfg;
+        this->_status = mmfusion::deviceStatus::INIT;
+
+        return;
+    }
+
+    DCA1000::~DCA1000()
+    {
+    }
+
+    void DCA1000::configure()
+    {
+        this->_io = new boost::asio::io_service();
+        this->_socket_ptr = new boost::asio::ip::udp::socket(*this->_io);
+
+        return;
+    }
+
+    void DCA1000::readRawADC()
+    {
+        this->_socket_ptr->open(boost::asio::ip::udp::v4());
+        this->_socket_ptr->bind(boost::asio::ip::udp::endpoint(boost::asio::ip::address::from_string(this->_cfg->dca_addr),
+                                                               this->_cfg->dca_data_port));
+
+        this->_wait();
+
+        this->_io->run();
+    }
+
+    void DCA1000::_handle_recv(const boost::system::error_code &ec, size_t bytes_transferred)
+    {
+        if (ec)
+        {
+            std::cerr << "Read UDP packet failed" << std::endl;
+        }
+
+        std::cout << "Received: " << std::string(this->_recv_buf.begin(), this->_recv_buf.begin() + bytes_transferred) << std::endl;
+    }
+
+    void DCA1000::_wait()
+    {
+        this->_socket_ptr->async_receive_from(boost::asio::buffer(this->_recv_buf),
+                                              this->_remote_endpoint,
+                                              boost::bind(&DCA1000::_handle_recv, this,
+                                                          boost::asio::placeholders::error,
+                                                          boost::asio::placeholders::bytes_transferred));
+    }
+
 } // namespace mmfusion

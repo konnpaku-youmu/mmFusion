@@ -2,25 +2,6 @@
 
 namespace mmfusion
 {
-    bool MultiThreading::startThread(pthread_attr_t &attr)
-    {
-        return (pthread_create(&(this->_thread), &attr, _internal_thread_entry, this) == 0);
-    }
-
-    void MultiThreading::stopThread()
-    {
-        return (void)pthread_join(this->_thread, NULL);
-    }
-
-    void *MultiThreading::_internal_thread_entry(void *This)
-    {
-        pthread_mutex_lock(&(((MultiThreading *)This)->_mutex));
-        ((MultiThreading *)This)->entryPoint();
-        pthread_mutex_unlock(&(((MultiThreading *)This)->_mutex));
-
-        return NULL;
-    }
-
     ImageVis::ImageVis(cv::Mat *_img_ptr, pthread_mutex_t &mutex)
     {
         this->_content = _img_ptr;

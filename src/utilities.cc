@@ -77,6 +77,7 @@ namespace mmfusion
                 this->class_colors.push_back(color);
             }
 
+            /* load mmWave Radar parameters */
             cfg["mmWave"]["radar"]["commandPort"] >> this->cmd_port;
             cfg["mmWave"]["radar"]["baudRate"] >> this->baud_rate;
 
@@ -115,12 +116,36 @@ namespace mmfusion
             this->cmd_list.push_back("sensorStop\r\n");
             profile_config.close();
 
+            /* load DCA1000 configuration */
+            cfg["mmWave"]["DCA1000"]["ip"] >> this->dca_addr;
+            cfg["mmWave"]["DCA1000"]["cmdPort"] >> this->dca_cmd_port;
+            cfg["mmWave"]["DCA1000"]["dataPort"] >>this->dca_data_port;
+            
             cfg.release();
         }
         catch (const std::exception &e)
         {
             std::cerr << e.what() << '\n';
         }
+    }
+
+    bool MultiThreading::startThread(pthread_attr_t &attr)
+    {
+        return (pthread_create(&(this->_thread), &attr, _internal_thread_entry, this) == 0);
+    }
+
+    void MultiThreading::stopThread()
+    {
+        return (void)pthread_join(this->_thread, NULL);
+    }
+
+    void *MultiThreading::_internal_thread_entry(void *This)
+    {
+        pthread_mutex_lock(&(((MultiThreading *)This)->_mutex));
+        ((MultiThreading *)This)->entryPoint();
+        pthread_mutex_unlock(&(((MultiThreading *)This)->_mutex));
+
+        return NULL;
     }
 
     int argmax(cv::Mat1d list)
@@ -188,7 +213,7 @@ namespace mmfusion
             break;
         }
         std::cerr << "\033[0m";
-        
+
         return;
     }
 

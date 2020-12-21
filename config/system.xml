@@ -39,6 +39,10 @@
       <profileCfg>"/home/hcrd/Projects/mmFusion/config/6843_profile.cfg"</profileCfg>
     </radar>
     <DCA1000>
+      <ip>"192.168.33.180"</ip>
+      <cmdPort>4096</cmdPort>
+      <dataPort>4098</dataPort>
+      <triggerMode>"Hardware"</triggerMode>
     </DCA1000>
   </mmWave>
 </opencv_storage>

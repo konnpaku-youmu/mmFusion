@@ -26,26 +26,6 @@ namespace mmfusion
         }
     };
 
-    class MultiThreading
-    {
-    private:
-        pthread_t _thread;
-
-        static void *_internal_thread_entry(void *);
-
-    protected:
-        pthread_mutex_t _mutex;
-
-        virtual void entryPoint() = 0;
-
-    public:
-        MultiThreading() {}
-
-        bool startThread(pthread_attr_t &);
-
-        void stopThread();
-    };
-
     class ImageVis : public MultiThreading
     {
     private:
