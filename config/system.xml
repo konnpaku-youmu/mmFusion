@@ -43,6 +43,7 @@
       <cmdPort>4096</cmdPort>
       <dataPort>4098</dataPort>
       <triggerMode>"Hardware"</triggerMode>
+      <cfgPath>"path/to/json/ignore/if/using/hardware/trigger"</cfgPath>
     </DCA1000>
   </mmWave>
 </opencv_storage>

@@ -4,7 +4,13 @@
 #include <iostream>
 #include <fstream>
 #include <signal.h>
+#include <complex>
+#include <boost/asio.hpp>
+#include <boost/array.hpp>
+#include <boost/bind/bind.hpp>
 #include <opencv4/opencv2/opencv.hpp>
+
+using namespace boost::asio::ip;
 
 namespace mmfusion
 {
@@ -43,6 +49,8 @@ namespace mmfusion
         std::string dca_addr;
         int dca_data_port;
         int dca_cmd_port;
+        std::string trigger_mode;
+        std::string dca_cfg_path;
         
         SystemConf(const std::string &);
     };

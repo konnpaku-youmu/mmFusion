@@ -17,7 +17,7 @@ namespace mmfusion
 
     void Radar::_display_properties()
     {
-        std::cout << "\033[1;34m";
+        std::cout << "\033[0;92m";
         std::cout << "---" << std::endl;
         std::cout << "mmWave Radar properties" << std::endl;
         std::cout << "---" << std::endl;
@@ -65,10 +65,10 @@ namespace mmfusion
         /* send full profile configuration via serial port for initialization */
         for (auto cmd : this->_cfg->cmd_list)
         {
-            // wait before sending sensorStart command to radar
+            // wait before testing sensorStart command to radar
             if (std::strcmp(cmd.c_str(), "sensorStart\r\n") == 0)
             {
-                std::cout << "\033[1;34m";
+                std::cout << "\033[1;92m";
                 std::cout << "Ready to try \"sensorStart\". Continue?(Y/n)";
                 std::cout << "\033[0m";
                 mmfusion::waitBeforeContinue();
@@ -79,7 +79,7 @@ namespace mmfusion
             assert(!this->_read_from_serial(response));
             std::cout << response << std::endl;
 
-            usleep(100000);
+            usleep(25000);
         }
 
         this->_status = mmfusion::deviceStatus::CONFIGURED;
@@ -89,9 +89,9 @@ namespace mmfusion
 
     void Radar::entryPoint()
     {
-        for(;;)
+        for (;;)
         {
-            if(std::getchar() == '\n')
+            if (std::getchar() == '\n')
             {
                 this->toggle();
             }
@@ -104,11 +104,11 @@ namespace mmfusion
         std::string response;
         this->_write_to_serial(cmd);
         this->_read_from_serial(response);
-        std::cout << response;
-        
-        if(response.find("Done"))
+
+        if (response.find("Done") != std::string::npos)
         {
-            std::cout << "start" << std::endl;
+            this->_status = mmfusion::deviceStatus::RUNNING;
+            std::cout << "[INFO] Sensor is running. Press 'Enter' to pause...";
         }
 
         return;
@@ -120,11 +120,11 @@ namespace mmfusion
         std::string response;
         this->_write_to_serial(cmd);
         this->_read_from_serial(response);
-        std::cout << response;
 
-        if(response.find("Done") == std::string::npos)
+        if (response.find("Done") != std::string::npos)
         {
-            std::cout << "stop" << std::endl;
+            this->_status = mmfusion::deviceStatus::CONFIGURED;
+            std::cout << "[INFO] Sensor stopped. Press 'Enter' to resume...";
         }
 
         return;
@@ -138,14 +138,9 @@ namespace mmfusion
         {
         case mmfusion::deviceStatus::CONFIGURED:
             this->sensorStart();
-            this->_status = RUNNING;
             break;
         case mmfusion::deviceStatus::RUNNING:
-            cmd = "sensorStop\r\n";
-            this->_write_to_serial(cmd);
-            this->_status = CONFIGURED;
-            this->_read_from_serial(response);
-            std::cout << response;
+            this->sensorStop();
             break;
         default:
             break;
@@ -185,10 +180,27 @@ namespace mmfusion
         return ec;
     }
 
-    DCA1000::DCA1000(mmfusion::SystemConf &cfg)
+    DCA1000::DCA1000(mmfusion::SystemConf &cfg, pthread_mutex_t &mut)
     {
         this->_cfg = &cfg;
         this->_status = mmfusion::deviceStatus::INIT;
+        this->_mutex = mut;
+
+        /* create UDP socket */
+        this->_socket = new udp::socket(this->_io_srv,
+                                        udp::endpoint(udp::v4(),
+                                                      this->_cfg->dca_data_port));
+        assert(this->_socket->is_open());
+
+        std::cout << "[INFO]UDP socket is created..." << std::endl;
+
+        /* write configuration to DCA1000 if using software config (SW2.5 -> SW_CONFIG) */
+        if(std::strcmp(this->_cfg->trigger_mode.c_str(), "Software") == 0)
+        {
+            this->configure();
+        }
+
+        this->_start_receive();
 
         return;
     }
@@ -197,42 +209,55 @@ namespace mmfusion
     {
     }
 
-    void DCA1000::configure()
+    void DCA1000::entryPoint()
     {
-        this->_io = new boost::asio::io_service();
-        this->_socket_ptr = new boost::asio::ip::udp::socket(*this->_io);
-
+        this->_io_srv.run();
+        
         return;
     }
 
-    void DCA1000::readRawADC()
+    void DCA1000::_start_receive()
     {
-        this->_socket_ptr->open(boost::asio::ip::udp::v4());
-        this->_socket_ptr->bind(boost::asio::ip::udp::endpoint(boost::asio::ip::address::from_string(this->_cfg->dca_addr),
-                                                               this->_cfg->dca_data_port));
-
-        this->_wait();
-
-        this->_io->run();
+        this->_socket->async_receive_from(boost::asio::buffer(this->_buf), this->_remote_ep,
+                                          boost::bind(&DCA1000::_handle_receive, this,
+                                                      boost::asio::placeholders::error,
+                                                      boost::asio::placeholders::bytes_transferred));
+        return;
     }
 
-    void DCA1000::_handle_recv(const boost::system::error_code &ec, size_t bytes_transferred)
+    void DCA1000::_handle_receive(const boost::system::error_code ec, size_t bytes_transferred)
     {
-        if (ec)
+        // for(auto byte:this->_buf)
+        // {
+        //     std::cout << std::setw(2) << std::setfill('0') << std::hex << (0xff & byte);
+        // }
+        // std::cout << std::endl << std::endl;
+
+        /* Parsing Raw data */
+        RawDCAPacket packet;
+        char *phead = this->_buf.begin();
+
+        std::memcpy(&packet.seq, phead, 4);
+        phead += 4;
+
+        std::memcpy(&packet.byte_cnt, phead, 8);
+        packet.byte_cnt &= 0x00ffffffffffff;
+        phead += 6;
+
+        while(phead != this->_buf.end())
         {
-            std::cerr << "Read UDP packet failed" << std::endl;
+            
         }
 
-        std::cout << "Received: " << std::string(this->_recv_buf.begin(), this->_recv_buf.begin() + bytes_transferred) << std::endl;
+        std::cout << (packet.byte_cnt / (1 << 20)) << std::endl;
+
+        this->_start_receive();
+        
+        return;
     }
 
-    void DCA1000::_wait()
+    void DCA1000::configure()
     {
-        this->_socket_ptr->async_receive_from(boost::asio::buffer(this->_recv_buf),
-                                              this->_remote_endpoint,
-                                              boost::bind(&DCA1000::_handle_recv, this,
-                                                          boost::asio::placeholders::error,
-                                                          boost::asio::placeholders::bytes_transferred));
+        return;
     }
-
 } // namespace mmfusion

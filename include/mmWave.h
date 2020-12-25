@@ -1,13 +1,22 @@
 #ifndef MMWAVE_H
 #define MMWAVE_H
 
-#include <boost/asio.hpp>
-#include <boost/array.hpp>
-#include <boost/bind/bind.hpp>
 #include "utilities.h"
+
+using namespace boost::asio::ip;
 
 namespace mmfusion
 {
+    struct
+    {
+        uint32_t seq;
+        uint64_t byte_cnt = 0;
+        
+
+    } typedef RawDCAPacket;
+
+    typedef std::vector<RawDCAPacket> DataFrame;
+
     class Radar : public MultiThreading, Device
     {
     private:
@@ -36,29 +45,32 @@ namespace mmfusion
         void toggle();
     };
 
-    class DCA1000 : public Device
+    class DCA1000 : public MultiThreading, Device
     {
     private:
-        boost::asio::io_service *_io;
+        boost::asio::io_service _io_srv;
 
-        boost::asio::ip::udp::socket *_socket_ptr;
+        udp::socket *_socket;
 
-        boost::asio::ip::udp::endpoint _remote_endpoint;
+        udp::endpoint _remote_ep;
 
-        boost::array<char, 65536> _recv_buf;
+        boost::array<char, 1466> _buf;
 
-        void _wait();
+        void _start_receive();
 
-        void _handle_recv(const boost::system::error_code &, size_t);
+        void _handle_receive(const boost::system::error_code, size_t);
+
+    protected:
+        void entryPoint();
 
     public:
-        DCA1000(mmfusion::SystemConf &);
+        DCA1000(mmfusion::SystemConf &, pthread_mutex_t &);
 
         ~DCA1000();
 
-        void readRawADC();
-
         void configure();
+
+
     };
 
 } // namespace mmfusion

@@ -119,8 +119,13 @@ namespace mmfusion
             /* load DCA1000 configuration */
             cfg["mmWave"]["DCA1000"]["ip"] >> this->dca_addr;
             cfg["mmWave"]["DCA1000"]["cmdPort"] >> this->dca_cmd_port;
-            cfg["mmWave"]["DCA1000"]["dataPort"] >>this->dca_data_port;
-            
+            cfg["mmWave"]["DCA1000"]["dataPort"] >> this->dca_data_port;
+            cfg["mmWave"]["DCA1000"]["triggerMode"] >> this->trigger_mode;
+            if (std::strcmp(this->trigger_mode.c_str(), "Software"))
+            {
+                cfg["mmWave"]["DCA1000"]["cfgPath"] >> this->dca_cfg_path;
+            }
+
             cfg.release();
         }
         catch (const std::exception &e)
