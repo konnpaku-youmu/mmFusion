@@ -12,7 +12,8 @@ namespace mmfusion
         uint32_t seq;
         uint64_t byte_cnt = 0;
         
-
+        std::vector<uint16_t> raw_adc;
+        
     } typedef RawDCAPacket;
 
     typedef std::vector<RawDCAPacket> DataFrame;
@@ -56,6 +57,12 @@ namespace mmfusion
 
         boost::array<char, 1466> _buf;
 
+        size_t _frame_len;
+
+        DataFrame *_active_frame;
+
+        std::vector<DataFrame> _frame_buf;
+
         void _start_receive();
 
         void _handle_receive(const boost::system::error_code, size_t);
@@ -69,8 +76,6 @@ namespace mmfusion
         ~DCA1000();
 
         void configure();
-
-
     };
 
 } // namespace mmfusion

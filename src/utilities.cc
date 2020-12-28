@@ -222,4 +222,27 @@ namespace mmfusion
         return;
     }
 
+    std::vector<std::string> split(std::string &input, const std::string &delimiter)
+    {
+        std::string src = input;
+        std::vector<std::string> res;
+        
+        while (!src.empty())
+        {
+            size_t pos = src.find(delimiter);
+            if(pos != std::string::npos)
+            {
+                res.push_back(src.substr(0, pos));
+                src.erase(0, pos + delimiter.size());
+            }
+            else
+            {
+                res.push_back(src);
+                break;
+            }
+            
+        }
+        
+        return res;
+    }
 } // namespace mmfusion

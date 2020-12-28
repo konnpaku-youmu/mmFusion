@@ -192,15 +192,75 @@ namespace mmfusion
                                                       this->_cfg->dca_data_port));
         assert(this->_socket->is_open());
 
-        std::cout << "[INFO]UDP socket is created..." << std::endl;
+        std::cout << "[INFO] UDP socket is created..." << std::endl;
 
         /* write configuration to DCA1000 if using software config (SW2.5 -> SW_CONFIG) */
-        if(std::strcmp(this->_cfg->trigger_mode.c_str(), "Software") == 0)
+        if (std::strcmp(this->_cfg->trigger_mode.c_str(), "Software") == 0)
         {
             this->configure();
         }
 
+        /* Determine frame length */
+        int tx_num = 0, rx_num = 0, adc_samples = 0, chirps_per_frame = 0;
+        std::vector<std::string> tokens;
+
+        for (auto cmd : this->_cfg->cmd_list)
+        {
+            // get the number of Tx and Rx
+            if (cmd.find("channelCfg") != std::string::npos)
+            {
+                tokens = split(cmd, " ");
+                int rx_code = std::stoi(tokens[1]);
+                int tx_code = std::stoi(tokens[2]);
+
+                while (rx_code != 0)
+                {
+                    rx_num += rx_code & 1;
+                    rx_code >>= 1;
+                }
+
+                switch (tx_code)
+                {
+                case 1:
+                    tx_num = 1;
+                    break;
+                case 4:
+                    tx_num = 1;
+                    break;
+                case 5:
+                    tx_num = 2;
+                    break;
+                case 7:
+                    tx_num = 2;
+                    break;
+                default:
+                    break;
+                }
+            }
+            // get ADC samples per chirp
+            else if (cmd.find("profileCfg") != std::string::npos)
+            {
+                tokens = split(cmd, " ");
+                adc_samples = std::stoi(tokens[10]);
+            }
+            // get number of chirps in one single frame
+            else if (cmd.find("frameCfg") != std::string::npos)
+            {
+                tokens = split(cmd, " ");
+                int chirps_per_loop = std::stoi(tokens[2]) - std::stoi(tokens[1]) + 1;
+                int loops = std::stoi(tokens[3]);
+                chirps_per_frame = loops * chirps_per_loop;
+            }
+        }
+
+        /* calculate frame length */
+        /* (IQ) * (16bits) * (number of Tx) * (number of Rx) * (ADC samples per chirp) * (chirps in a frame)*/
+        this->_frame_len = 2 * 2 * tx_num * rx_num * adc_samples * chirps_per_frame;
+        std::cout << "[INFO] Frame length in bytes: " << this->_frame_len << std::endl;
+
         this->_start_receive();
+
+        this->_status = mmfusion::deviceStatus::CONFIGURED;
 
         return;
     }
@@ -211,8 +271,9 @@ namespace mmfusion
 
     void DCA1000::entryPoint()
     {
+        this->_status = mmfusion::deviceStatus::RUNNING;
         this->_io_srv.run();
-        
+
         return;
     }
 
@@ -227,12 +288,6 @@ namespace mmfusion
 
     void DCA1000::_handle_receive(const boost::system::error_code ec, size_t bytes_transferred)
     {
-        // for(auto byte:this->_buf)
-        // {
-        //     std::cout << std::setw(2) << std::setfill('0') << std::hex << (0xff & byte);
-        // }
-        // std::cout << std::endl << std::endl;
-
         /* Parsing Raw data */
         RawDCAPacket packet;
         char *phead = this->_buf.begin();
@@ -244,15 +299,23 @@ namespace mmfusion
         packet.byte_cnt &= 0x00ffffffffffff;
         phead += 6;
 
-        while(phead != this->_buf.end())
+        int this_frame_end = this->_frame_len - (packet.byte_cnt % this->_frame_len);
+        if(this_frame_end < 1456)
         {
+            // new frame starts at current packet
             
         }
 
-        std::cout << (packet.byte_cnt / (1 << 20)) << std::endl;
+        while (phead != this->_buf.end())
+        {
+            uint16_t sample = 0x0000;
+            std::memcpy(&sample, phead, 2);
+            packet.raw_adc.push_back(sample);
+            phead += 2;
+        }
 
         this->_start_receive();
-        
+
         return;
     }
 

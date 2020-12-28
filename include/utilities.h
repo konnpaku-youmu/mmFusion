@@ -19,7 +19,7 @@ namespace mmfusion
         INIT,
         CONFIGURED,
         RUNNING,
-        FAILED   
+        FAILED
     };
 
     struct SystemConf
@@ -100,6 +100,8 @@ namespace mmfusion
     int argmax(cv::Mat1d);
 
     void padding(cv::Mat &, cv::Mat &);
+
+    std::vector<std::string> split(std::string &, const std::string &);
 } // namespace mmfusion
 
 #endif

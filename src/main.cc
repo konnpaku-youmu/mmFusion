@@ -15,15 +15,16 @@ int main(int argc, char **argv)
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
     /* Instantiate Devices */
+
     mmfusion::Radar radar(cfg, mut);
     radar.configure();
-    
+
     mmfusion::DCA1000 data_cap(cfg, mut);
-    
+
     radar.startThread(attr);
     data_cap.startThread(attr);
 
-    for(;;);
+    for (;;);
 
     pthread_attr_destroy(&attr);
     pthread_mutex_destroy(&mut);
