@@ -36,7 +36,7 @@
     <radar>
       <commandPort>"/dev/ttyACM0"</commandPort>
       <baudRate>115200</baudRate>
-      <profileCfg>"/home/hcrd/Projects/mmFusion/config/6843_profile.cfg"</profileCfg>
+      <profileCfg>"/home/hcrd/Projects/mmFusion/config/1642_profile.cfg"</profileCfg>
     </radar>
     <DCA1000>
       <ip>"192.168.33.180"</ip>

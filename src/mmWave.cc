@@ -213,24 +213,29 @@ namespace mmfusion
                 int rx_code = std::stoi(tokens[1]);
                 int tx_code = std::stoi(tokens[2]);
 
+                // The number of the set bits is equal to the number of enabled Rx antennas.
                 while (rx_code != 0)
                 {
                     rx_num += rx_code & 1;
                     rx_code >>= 1;
                 }
 
+                // The number of set bits in Tx config does not directly /
+                // represent the number of equivalent Tx channels.
                 switch (tx_code)
                 {
-                case 1:
+                case 1: // Trivial case with Tx0 enabled
                     tx_num = 1;
                     break;
-                case 4:
+                case 4: // Trivial case with Tx2 enabled
                     tx_num = 1;
                     break;
-                case 5:
+                case 5: // Trivial case with both Tx0 and Tx2 enabled
                     tx_num = 2;
                     break;
-                case 7:
+                case 7: // Non-Trivial case when all three Tx antennas are enabled /
+                    // Under this circumstance, antenna Tx1 expand the equivalent /
+                    // Rx array with an additional row.
                     tx_num = 2;
                     break;
                 default:
@@ -258,6 +263,7 @@ namespace mmfusion
         this->_frame_len = 2 * 2 * tx_num * rx_num * adc_samples * chirps_per_frame;
         std::cout << "[INFO] Frame length in bytes: " << this->_frame_len << std::endl;
 
+        // Queue the async receive task
         this->_start_receive();
 
         this->_status = mmfusion::deviceStatus::CONFIGURED;
@@ -279,6 +285,9 @@ namespace mmfusion
 
     void DCA1000::_start_receive()
     {
+        // receive UDP data and put them into this->_buf. /
+        // Only RAW_MODE is allowed so that the length is maintained to 1456 bytes
+
         this->_socket->async_receive_from(boost::asio::buffer(this->_buf), this->_remote_ep,
                                           boost::bind(&DCA1000::_handle_receive, this,
                                                       boost::asio::placeholders::error,
@@ -292,31 +301,123 @@ namespace mmfusion
         RawDCAPacket packet;
         char *phead = this->_buf.begin();
 
+        // read first 4 bytes that represents the sequence number.
         std::memcpy(&packet.seq, phead, 4);
         phead += 4;
 
+        // read the next 6 bytes that represent the bytes count of /
+        // already sent raw ADC data. However, we copy 8 bytes in order to align /
+        // with the size of uint64_t to prevent potential segmentation problems while /
+        // immediately truncate the data to its original form by bitwise AND.
         std::memcpy(&packet.byte_cnt, phead, 8);
         packet.byte_cnt &= 0x00ffffffffffff;
         phead += 6;
 
-        int this_frame_end = this->_frame_len - (packet.byte_cnt % this->_frame_len);
-        if(this_frame_end < 1456)
+        int curr_frame_end = this->_frame_len - (packet.byte_cnt % this->_frame_len);
+
+        if (curr_frame_end == this->_frame_len)
         {
-            // new frame starts at current packet
+            // There will be circumstance when the start position of a data frame /
+            // conincide with the start of a data packet, which will cause the /
+            // curr_frame_end to be the _frame_len(which is typically much larger than 1456)
+            curr_frame_end = 0;
+        }
+
+        if (curr_frame_end < 1456)
+        {
+            if (!this->_frame_list.empty())
+            {
+                // if previous data frames exist, it means that the current data packet /
+                // is the last chunk of data of the lastest dataframe in the data frame collection.
+                // We pack the corresponding data whose length will be less than 1456 Bytes.               this->_make_packet(phead, (&this->_buf[10] + curr_frame_end), packet);
+                // meanwhile the pointer is moved to the start of the new data
+
+                DataFrame *last_frame = &this->_frame_list.back();
+                char *end_position = this->_buf.begin() + 10 + curr_frame_end;
+
+                this->_make_packet(&phead, end_position, packet);
+                last_frame->data.push_back(packet);
+                if (!this->_frame_check(*last_frame))
+                {
+                    std::cout << "Frame: " << last_frame->id << " is probably malformed" << std::endl;
+                }
+
+                // Since this packet contains data belongs to two consecutive dataframes, /
+                // after we finished constructing the old dataframe, we should clear the /
+                // ADC data in the current packet(which belongs to the old data frame)
+                // to hold data of the new dataframe, which will reuse the packet instance.
+                packet.raw_adc.clear();
+
+                // check data integrity
+            }
+            else
+            {
+                // if no previous data frame exists, we directly move the pointer to /
+                // the start position of the incoming data frame.
+                phead += curr_frame_end;
+            }
+
+            // Construct a new dataframe and push it into the data frame collection
+            DataFrame new_frame;
+            this->_make_packet(&phead, this->_buf.end(), packet);
             
+            if (this->_frame_list.empty())
+            {
+                new_frame.id = 0;
+            }
+            else
+            {
+                new_frame.id = this->_frame_list.back().id + 1;
+            }
+            
+            new_frame.data.push_back(packet);
+            this->_frame_list.push_back(new_frame);
         }
-
-        while (phead != this->_buf.end())
+        else
         {
-            uint16_t sample = 0x0000;
-            std::memcpy(&sample, phead, 2);
-            packet.raw_adc.push_back(sample);
-            phead += 2;
+            if (!this->_frame_list.empty())
+            {
+                this->_make_packet(&phead, this->_buf.end(), packet);
+                this->_frame_list.back().data.push_back(packet);
+            }
         }
 
+        // trigger receive thread again
         this->_start_receive();
 
         return;
+    }
+
+    void DCA1000::_make_packet(char **begin, char *end, mmfusion::RawDCAPacket &packet)
+    {
+        while (*begin != end)
+        {
+            uint16_t raw_data;
+            std::memcpy(&raw_data, *begin, 2);
+            packet.raw_adc.push_back(raw_data);
+            *begin += 2;
+        }
+
+        return;
+    }
+
+    bool DCA1000::_frame_check(const DataFrame &frame)
+    {
+        size_t seq_diff = 0;
+        size_t byte_count_diff = 0;
+
+        size_t total_packets = frame.data.size();
+        size_t total_len = 0;
+
+        for (auto packet : frame.data)
+        {
+            total_len += 2 * packet.raw_adc.size();
+        }
+
+        seq_diff = frame.data.back().seq - frame.data.front().seq + 1;
+        byte_count_diff = frame.data.back().byte_cnt - frame.data.front().byte_cnt;
+
+        return (total_len == this->_frame_len);
     }
 
     void DCA1000::configure()

@@ -4,6 +4,7 @@ project(mmfusion)
 add_compile_options(-std=c++17)
 
 find_package(OpenCV REQUIRED)
+find_package(Armadillo REQUIRED)
 find_package(Boost 1.72 REQUIRED)
 
 include_directories(

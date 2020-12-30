@@ -11,12 +11,16 @@ namespace mmfusion
     {
         uint32_t seq;
         uint64_t byte_cnt = 0;
-        
+
         std::vector<uint16_t> raw_adc;
-        
+
     } typedef RawDCAPacket;
 
-    typedef std::vector<RawDCAPacket> DataFrame;
+    struct
+    {
+        size_t id;
+        std::vector<RawDCAPacket> data;
+    } typedef DataFrame;
 
     class Radar : public MultiThreading, Device
     {
@@ -28,7 +32,7 @@ namespace mmfusion
         boost::system::error_code _write_to_serial(std::string &);
 
         boost::system::error_code _read_from_serial(std::string &);
-    
+
     protected:
         void entryPoint();
 
@@ -59,9 +63,11 @@ namespace mmfusion
 
         size_t _frame_len;
 
-        DataFrame *_active_frame;
+        std::vector<DataFrame> _frame_list;
 
-        std::vector<DataFrame> _frame_buf;
+        void _make_packet(char **, char *, mmfusion::RawDCAPacket &);
+
+        bool _frame_check(const DataFrame &);
 
         void _start_receive();
 
