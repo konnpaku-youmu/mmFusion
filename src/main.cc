@@ -19,12 +19,19 @@ int main(int argc, char **argv)
     mmfusion::Radar radar(cfg, mut);
     radar.configure();
 
+    std::vector<Eigen::MatrixXcd> adc_mat;
     mmfusion::DCA1000 data_cap(cfg, mut);
 
     radar.startThread(attr);
     data_cap.startThread(attr);
 
-    for (;;);
+    for (;;)
+    {
+        if (data_cap.getStatus() == mmfusion::deviceStatus::RUNNING)
+        {
+            data_cap.organize(adc_mat);
+        }
+    }
 
     pthread_attr_destroy(&attr);
     pthread_mutex_destroy(&mut);

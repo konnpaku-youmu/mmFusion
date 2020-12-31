@@ -63,7 +63,10 @@ namespace mmfusion
 
         size_t _frame_len;
 
-        std::vector<DataFrame> _frame_list;
+        std::list<DataFrame> _frame_list;
+
+        int tx_num = 0, rx_num = 0,
+            adc_samples = 0, loops = 0, chirps_per_loop = 0;
 
         void _make_packet(char **, char *, mmfusion::RawDCAPacket &);
 
@@ -82,6 +85,10 @@ namespace mmfusion
         ~DCA1000();
 
         void configure();
+
+        void organize(std::vector<Eigen::MatrixXcd> &);
+
+        mmfusion::deviceStatus getStatus();
     };
 
 } // namespace mmfusion

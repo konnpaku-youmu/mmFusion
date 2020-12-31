@@ -4,6 +4,8 @@
 #include <iostream>
 #include <fstream>
 #include <signal.h>
+#include <eigen3/Eigen/Eigen>
+#include <armadillo>
 #include <complex>
 #include <boost/asio.hpp>
 #include <boost/array.hpp>

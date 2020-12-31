@@ -89,13 +89,24 @@ namespace mmfusion
 
     void Radar::entryPoint()
     {
+        std::string cmd;
         for (;;)
         {
-            if (std::getchar() == '\n')
+            std::cout << "\nmmWave >> ";
+            std::getline(std::cin, cmd);
+            if (cmd.empty())
             {
                 this->toggle();
             }
+            else if (std::strcmp(cmd.c_str(), "exit") == 0)
+            {
+                this->sensorStop();
+                this->stopThread();
+                break;
+            }
         }
+        std::cout << "Radar has been disengaged" << std::endl;
+        return;
     }
 
     void Radar::sensorStart()
@@ -108,7 +119,7 @@ namespace mmfusion
         if (response.find("Done") != std::string::npos)
         {
             this->_status = mmfusion::deviceStatus::RUNNING;
-            std::cout << "[INFO] Sensor is running. Press 'Enter' to pause...";
+            std::cout << "[INFO] Sensor is running. Press 'Enter' to pause..." << std::endl;
         }
 
         return;
@@ -124,7 +135,7 @@ namespace mmfusion
         if (response.find("Done") != std::string::npos)
         {
             this->_status = mmfusion::deviceStatus::CONFIGURED;
-            std::cout << "[INFO] Sensor stopped. Press 'Enter' to resume...";
+            std::cout << "[INFO] Sensor stopped. Press 'Enter' to resume..." << std::endl;
         }
 
         return;
@@ -201,8 +212,8 @@ namespace mmfusion
         }
 
         /* Determine frame length */
-        int tx_num = 0, rx_num = 0, adc_samples = 0, chirps_per_frame = 0;
         std::vector<std::string> tokens;
+        int chirps_per_frame;
 
         for (auto cmd : this->_cfg->cmd_list)
         {
@@ -214,6 +225,8 @@ namespace mmfusion
                 int tx_code = std::stoi(tokens[2]);
 
                 // The number of the set bits is equal to the number of enabled Rx antennas.
+                tx_num = 0;
+                rx_num = 0;
                 while (rx_code != 0)
                 {
                     rx_num += rx_code & 1;
@@ -252,8 +265,8 @@ namespace mmfusion
             else if (cmd.find("frameCfg") != std::string::npos)
             {
                 tokens = split(cmd, " ");
-                int chirps_per_loop = std::stoi(tokens[2]) - std::stoi(tokens[1]) + 1;
-                int loops = std::stoi(tokens[3]);
+                chirps_per_loop = std::stoi(tokens[2]) - std::stoi(tokens[1]) + 1;
+                loops = std::stoi(tokens[3]);
                 chirps_per_frame = loops * chirps_per_loop;
             }
         }
@@ -277,14 +290,76 @@ namespace mmfusion
 
     void DCA1000::entryPoint()
     {
-        this->_status = mmfusion::deviceStatus::RUNNING;
         this->_io_srv.run();
 
         return;
     }
 
+    void DCA1000::organize(std::vector<Eigen::MatrixXcd> &adc_block)
+    {
+        adc_block.clear();
+
+        std::vector<uint16_t> raw_adc;
+
+        if (this->_frame_list.size() > 5)
+        {
+            DataFrame *active_frame = &this->_frame_list.front();
+            // serialize raw ADC data frame
+            for (auto packet : active_frame->data)
+            {
+                for (auto data : packet.raw_adc)
+                {
+                    raw_adc.push_back(data);
+                }
+            }
+
+            // re-generate ADC dataframe
+            for (size_t loop = 0; loop < loops; ++loop)
+            {
+                for (size_t chirp = 1; chirp <= chirps_per_loop; ++chirp)
+                {
+                    Eigen::MatrixXcd one_chirp = Eigen::MatrixXcd::Zero(this->rx_num,
+                                                                        this->adc_samples);
+
+                    int start_pos = loop * chirp * this->adc_samples * this->rx_num * 2;
+                    for (size_t rx_idx = 0; rx_idx < this->rx_num; ++rx_idx)
+                    {
+                        uint16_t *start = &raw_adc[start_pos];
+                        for (size_t num_sample = 0; num_sample < this->adc_samples; ++num_sample)
+                        {
+                            uint16_t *I_pos = start + (2 * this->rx_num * num_sample);
+                            uint16_t *Q_pos = I_pos + this->rx_num;
+
+                            // Complex signal Rx_rxidx at (num_sample)th of ADC samples
+                            Eigen::dcomplex complex_sample(*I_pos, *Q_pos);
+                            one_chirp(rx_idx, num_sample) = complex_sample;
+                        }
+                    }
+
+                    adc_block.push_back(one_chirp);
+                }
+            }
+            std::cout << adc_block[0].row(0) << std::endl;
+            std::cout << std::endl;
+        }
+
+        return;
+    }
+
+    mmfusion::deviceStatus DCA1000::getStatus()
+    {
+        return this->_status;
+    }
+
     void DCA1000::_start_receive()
     {
+        this->_status = mmfusion::deviceStatus::CONFIGURED;
+        // limit the size of frame collection to 100 frames
+        if (this->_frame_list.size() > 10)
+        {
+            _frame_list.pop_front();
+        }
+
         // receive UDP data and put them into this->_buf. /
         // Only RAW_MODE is allowed so that the length is maintained to 1456 bytes
 
@@ -297,6 +372,7 @@ namespace mmfusion
 
     void DCA1000::_handle_receive(const boost::system::error_code ec, size_t bytes_transferred)
     {
+
         /* Parsing Raw data */
         RawDCAPacket packet;
         char *phead = this->_buf.begin();
@@ -327,28 +403,21 @@ namespace mmfusion
         {
             if (!this->_frame_list.empty())
             {
-                // if previous data frames exist, it means that the current data packet /
-                // is the last chunk of data of the lastest dataframe in the data frame collection.
-                // We pack the corresponding data whose length will be less than 1456 Bytes.               this->_make_packet(phead, (&this->_buf[10] + curr_frame_end), packet);
+                // If previous data frames exist, it means that the current data packet /
+                // is the last chunk of data of the lastest dataframe in the data frame collection. /
+                // We pack the corresponding data whose length will be less than 1456 Bytes /
                 // meanwhile the pointer is moved to the start of the new data
 
                 DataFrame *last_frame = &this->_frame_list.back();
-                char *end_position = this->_buf.begin() + 10 + curr_frame_end;
-
+                char *end_position = phead + curr_frame_end;
                 this->_make_packet(&phead, end_position, packet);
                 last_frame->data.push_back(packet);
-                if (!this->_frame_check(*last_frame))
-                {
-                    std::cout << "Frame: " << last_frame->id << " is probably malformed" << std::endl;
-                }
 
                 // Since this packet contains data belongs to two consecutive dataframes, /
                 // after we finished constructing the old dataframe, we should clear the /
                 // ADC data in the current packet(which belongs to the old data frame)
                 // to hold data of the new dataframe, which will reuse the packet instance.
                 packet.raw_adc.clear();
-
-                // check data integrity
             }
             else
             {
@@ -360,16 +429,24 @@ namespace mmfusion
             // Construct a new dataframe and push it into the data frame collection
             DataFrame new_frame;
             this->_make_packet(&phead, this->_buf.end(), packet);
-            
+
             if (this->_frame_list.empty())
             {
                 new_frame.id = 0;
             }
             else
             {
+                // Check data integrity. If failed, abandon the last frame while the /
+                // incrementation of frame id is unaffected.
                 new_frame.id = this->_frame_list.back().id + 1;
+
+                if (!this->_frame_check(this->_frame_list.back()))
+                {
+                    std::cout << "\nFrame: " << this->_frame_list.back().id << " is probably malformed" << std::endl;
+                    this->_frame_list.pop_back();
+                }
             }
-            
+
             new_frame.data.push_back(packet);
             this->_frame_list.push_back(new_frame);
         }
@@ -382,6 +459,7 @@ namespace mmfusion
             }
         }
 
+        this->_status = mmfusion::deviceStatus::RUNNING;
         // trigger receive thread again
         this->_start_receive();
 
@@ -397,7 +475,6 @@ namespace mmfusion
             packet.raw_adc.push_back(raw_data);
             *begin += 2;
         }
-
         return;
     }
 
