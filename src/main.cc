@@ -27,10 +27,7 @@ int main(int argc, char **argv)
 
     for (;;)
     {
-        if (data_cap.getStatus() == mmfusion::deviceStatus::RUNNING)
-        {
-            data_cap.organize(adc_mat);
-        }
+        data_cap.organize(adc_mat);
     }
 
     pthread_attr_destroy(&attr);

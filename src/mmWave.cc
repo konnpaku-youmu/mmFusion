@@ -299,48 +299,53 @@ namespace mmfusion
     {
         adc_block.clear();
 
-        std::vector<uint16_t> raw_adc;
-
         if (this->_frame_list.size() > 5)
         {
+            Eigen::VectorXi raw_adc(this->_frame_len >> 1);
             DataFrame *active_frame = &this->_frame_list.front();
             // serialize raw ADC data frame
+            size_t num_count = 0;
             for (auto packet : active_frame->data)
             {
                 for (auto data : packet.raw_adc)
                 {
-                    raw_adc.push_back(data);
+                    raw_adc(num_count) = data;
+                    num_count++;
                 }
             }
 
-            // re-generate ADC dataframe
-            for (size_t loop = 0; loop < loops; ++loop)
+            Eigen::Map<Eigen::MatrixXi> organized(raw_adc.data(),
+                                                  this->rx_num * this->tx_num * this->adc_samples * 2,
+                                                  this->loops * this->chirps_per_loop);
+
+            for (size_t chirp = 0; chirp < organized.cols(); ++chirp)
             {
-                for (size_t chirp = 1; chirp <= chirps_per_loop; ++chirp)
+                Eigen::Map<Eigen::MatrixXi> one_chirp(organized.col(chirp).data(),
+                                                      this->adc_samples * 2,
+                                                      this->rx_num * this->tx_num);
+
+                Eigen::MatrixXcd cplx_raw(this->rx_num * this->tx_num,
+                                          this->adc_samples);
+
+                for (size_t rx = 0; rx < this->rx_num * this->tx_num; ++rx)
                 {
-                    Eigen::MatrixXcd one_chirp = Eigen::MatrixXcd::Zero(this->rx_num,
-                                                                        this->adc_samples);
+                    // Eigen::VectorXi one_rx = one_chirp.col(rx);
+                    Eigen::Map<Eigen::MatrixXi> one_rx(one_chirp.col(rx).data(),
+                                                       2, this->adc_samples);
 
-                    int start_pos = loop * chirp * this->adc_samples * this->rx_num * 2;
-                    for (size_t rx_idx = 0; rx_idx < this->rx_num; ++rx_idx)
+                    for (size_t sample = 0; sample < this->adc_samples; sample += 2)
                     {
-                        uint16_t *start = &raw_adc[start_pos];
-                        for (size_t num_sample = 0; num_sample < this->adc_samples; ++num_sample)
-                        {
-                            uint16_t *I_pos = start + (2 * this->rx_num * num_sample);
-                            uint16_t *Q_pos = I_pos + this->rx_num;
-
-                            // Complex signal Rx_rxidx at (num_sample)th of ADC samples
-                            Eigen::dcomplex complex_sample(*I_pos, *Q_pos);
-                            one_chirp(rx_idx, num_sample) = complex_sample;
-                        }
+                        cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(0, sample + 1),
+                                                               (int16_t)one_rx(0, sample));
                     }
-
-                    adc_block.push_back(one_chirp);
+                    for (size_t sample = 1; sample < this->adc_samples; sample += 2)
+                    {
+                        cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(1, sample),
+                                                               (int16_t)one_rx(1, sample - 1));
+                    }
                 }
+                adc_block.push_back(cplx_raw);
             }
-            std::cout << adc_block[0].row(0) << std::endl;
-            std::cout << std::endl;
         }
 
         return;
