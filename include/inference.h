@@ -1,12 +1,6 @@
 #ifndef INFER_H
 #define INFER_H
 
-#include <iostream>
-#include <memory>
-#include <unistd.h>
-#include <pthread.h>
-#include <mutex>
-#include <eigen3/Eigen/Eigen>
 #include <NvInfer.h>
 #include <NvInferRuntime.h>
 

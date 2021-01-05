@@ -2,6 +2,7 @@
 #include "cam_calib.h"
 #include "inference.h"
 #include "mmWave.h"
+#include "signalProc.h"
 
 int main(int argc, char **argv)
 {
@@ -19,7 +20,7 @@ int main(int argc, char **argv)
     mmfusion::Radar radar(cfg, mut);
     radar.configure();
 
-    std::vector<Eigen::MatrixXcd> adc_mat;
+    Eigen::MatrixXcd adc_mat;
     mmfusion::DCA1000 data_cap(cfg, mut);
 
     radar.startThread(attr);
@@ -27,7 +28,16 @@ int main(int argc, char **argv)
 
     for (;;)
     {
-        data_cap.organize(adc_mat);
+        // read raw adc data
+        if (data_cap.getRawData(adc_mat))
+        {
+            Eigen::MatrixXcd rx_0 = Eigen::MatrixXcd::Map(adc_mat.data(),
+                                                          adc_mat.rows(), adc_mat.cols() / 4,
+                                                          Eigen::OuterStride<>(4 * adc_mat.rows()));
+            // std::ofstream file("../rx_0_chirp.tsv");
+            // file << rx_0.transpose().format(Eigen::IOFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, "\t ", "\n"));
+            // file.close();
+        }
     }
 
     pthread_attr_destroy(&attr);
