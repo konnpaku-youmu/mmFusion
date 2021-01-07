@@ -3,6 +3,8 @@
 
 #include "utilities.h"
 
+#include <gsl/gsl_fft_complex.h>
+
 namespace mmfusion
 {
     template<typename MatrixT>

@@ -14,7 +14,6 @@
 #include <boost/bind/bind.hpp>
 
 #include <eigen3/Eigen/Eigen>
-#include <armadillo>
 #include <complex>
 #include <opencv4/opencv2/opencv.hpp>
 
