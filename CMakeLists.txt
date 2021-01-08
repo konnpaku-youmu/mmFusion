@@ -10,6 +10,7 @@ set(QT_VERSION_MAJOR 5)
 add_compile_options(-std=c++17)
 
 find_package(OpenCV REQUIRED)
+find_package(GSL REQUIRED)
 find_package(Boost 1.72 REQUIRED)
 find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets REQUIRED)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets PrintSupport REQUIRED)
@@ -21,7 +22,7 @@ set(PROJECT_SOURCES src/main.cc
                     src/inference.cc 
                     src/utilities.cc
                     src/visualize.cc 
-                    src/ui/mainwindow.cpp 
+                    src/ui/mainwindow.cc
                     include/ui/mainwindow.h
                     thirdparty/qcustomplot.h
                     thirdparty/qcustomplot.cpp
@@ -41,6 +42,8 @@ target_link_libraries(${PROJECT_NAME}
   -lpthread
   -pthread
   ${OpenCV_LIBS}
+
   Qt${QT_VERSION_MAJOR}::Widgets 
   Qt${QT_VERSION_MAJOR}::PrintSupport
+  GSL::gsl
 )

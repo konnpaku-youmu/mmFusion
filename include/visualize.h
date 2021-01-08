@@ -5,11 +5,12 @@
 
 #include "utilities.h"
 #include "mmWave.h"
+#include "signalProc.h"
 #include "ui/mainwindow.h"
 
 namespace mmfusion
 {
-    class DataPlot
+    class DataPlotWrapper
     {
     private:
         QApplication *_app;
@@ -18,10 +19,13 @@ namespace mmfusion
 
         mmfusion::DCA1000 *_data_source;
 
-    public:
-        DataPlot(int argc, char **argv, mmfusion::DCA1000 &);
+        mmfusion::Radar *_radar;
 
-        ~DataPlot();
+    public:
+        DataPlotWrapper(int argc, char **argv, mmfusion::Radar &,
+                        mmfusion::SignalProcessor &);
+
+        ~DataPlotWrapper();
 
         int show();
     };

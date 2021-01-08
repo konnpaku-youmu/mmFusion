@@ -102,6 +102,7 @@ namespace mmfusion
             }
             else if (std::strcmp(cmd.c_str(), "config") == 0)
             {
+                // this->_cfg->reloadRadarCfg();
                 this->configure();
             }
             else if (std::strcmp(cmd.c_str(), "exit") == 0)
@@ -323,6 +324,10 @@ namespace mmfusion
         Eigen::Map<Eigen::MatrixXi> organized(raw_adc.data(),
                                               this->rx_num * this->tx_num * this->adc_samples * 2,
                                               this->loops * this->chirps_per_loop);
+
+        Eigen::MatrixXcd raw_temp = Eigen::MatrixXcd::Zero(this->_raw_data.data_flattened.rows(),
+                                                           this->_raw_data.data_flattened.cols());
+
         /* Old documentation is correct */
         for (size_t chirp = 0; chirp < organized.cols(); ++chirp)
         {
@@ -349,8 +354,20 @@ namespace mmfusion
                                                            (int16_t)one_rx(1, sample - 1) * LSB);
                 }
             }
-            this->_raw_data.data_flattened.block(0, chirp * this->rx_num * this->tx_num,
-                                                 cplx_raw.cols(), cplx_raw.rows()) = cplx_raw.transpose();
+            raw_temp.block(0, chirp * this->rx_num * this->tx_num,
+                           cplx_raw.cols(), cplx_raw.rows()) = cplx_raw.transpose();
+        }
+
+        /* re-arrange by Rx */
+        for (size_t rx = 0; rx < this->rx_num * this->tx_num; ++rx)
+        {
+            Eigen::MatrixXcd rx_n = Eigen::MatrixXcd::Map(raw_temp.data() + (rx * raw_temp.rows()),
+                                                          raw_temp.rows(),
+                                                          raw_temp.cols() / (this->rx_num * tx_num),
+                                                          Eigen::OuterStride<>(
+                                                              this->rx_num * this->tx_num * raw_temp.rows()));
+            this->_raw_data.data_flattened.block(0, rx * rx_n.cols(),
+                                                 rx_n.rows(), rx_n.cols()) = rx_n;
         }
 
         this->_raw_data.rw_lock = mmfusion::RWStatus::AVAILABLE;

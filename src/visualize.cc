@@ -2,22 +2,22 @@
 
 namespace mmfusion
 {
-    DataPlot::DataPlot(int argc, char **argv, mmfusion::DCA1000 &dev)
+    DataPlotWrapper::DataPlotWrapper(int argc, char **argv, mmfusion::Radar &dev0,
+                                     mmfusion::SignalProcessor &dev1)
     {
         this->_app = new QApplication(argc, argv);
         this->_window = new MainWindow();
 
-        this->_window->bindDataSource(dev);
-        // this->_data_source = &dev;
+        this->_window->bindDevice(dev0, dev1);
 
         return;
     }
 
-    DataPlot::~DataPlot()
+    DataPlotWrapper::~DataPlotWrapper()
     {
     }
 
-    int DataPlot::show()
+    int DataPlotWrapper::show()
     {
         this->_window->show();
         return this->_app->exec();

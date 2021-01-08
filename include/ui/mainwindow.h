@@ -1,12 +1,16 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include "mmWave.h"
-
 #include <QMainWindow>
 
+#include "mmWave.h"
+#include "signalProc.h"
+
 QT_BEGIN_NAMESPACE
-namespace Ui { class MainWindow; }
+namespace Ui
+{
+    class MainWindow;
+}
 QT_END_NAMESPACE
 
 class MainWindow : public QMainWindow
@@ -17,33 +21,36 @@ public:
     MainWindow(QWidget *parent = nullptr);
 
     ~MainWindow();
-    
-    void bindDataSource(mmfusion::DCA1000 &);
 
-    void addPoint(double x, double y);
+    void bindDevice(mmfusion::Radar &,
+                    mmfusion::SignalProcessor &);
 
 private slots:
-    void on_quitButton_clicked();
+    void on_quit_clicked();
 
-    void on_plotButton_clicked();
+    void on_toggleSensor_clicked();
 
-    void on__A_valueChanged(double arg1);
+    void on_plot_clicked();
 
-    void on__Omega_valueChanged(double arg1);
+    void on_comboBox_currentIndexChanged(const QString &arg1);
 
-    void on__Phi_valueChanged(double arg1);
+    void refresh_plot();
+
+    void on_comboBox_currentIndexChanged(int index);
+
+    void on_spinBox_valueChanged(int arg1);
 
 private:
     Ui::MainWindow *ui;
 
-    Eigen::MatrixXcd _raw_data;
+    mmfusion::SignalProcessor *_proc;
 
-    mmfusion::DCA1000 *_data_source;
+    mmfusion::Radar *_radar;
 
-    QVector<double> qv_x, qv_y;
+    bool _enable_plot;
 
-    double _a, _omega, _phi;
+    int _plot_antenna;
 
-    void _replot();
+    int _plot_chirp;
 };
 #endif // MAINWINDOW_H
