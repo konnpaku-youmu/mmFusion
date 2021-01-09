@@ -5,8 +5,10 @@ import matplotlib.pyplot as plt
 
 samples = ""
 
-with open("./sample.txt") as f:
+with open("/home/hcrd/Projects/mmFusion/rx_0_chirp.tsv") as f:
     samples = f.readlines()
+
+sample_2d = []
 
 for i, sample in enumerate(samples):
     sample = sample.split(" ")
@@ -28,11 +30,14 @@ for i, sample in enumerate(samples):
 
     sig_fft_amp = [abs(num) for num in sig_fft]
 
-    plt.subplot(2,2,i+1)
-    plt.title("Rx {}".format(i))
-    # plt.plot(sample_r)
-    # plt.plot(sample_i)
-    # plt.subplot(2,2,2)
+    sample_2d.append(max(sig_fft_amp))
+
+    plt.subplot(8,4,i+1)
+    plt.title("Chirp {}".format(i))
     plt.stem(sig_fft_amp)
 
+# print(sample_2d)
+# fft_2d = np.fft.fft(sample_2d)
+# fft_2d_amp = [abs(num) for num in fft_2d]
+# plt.stem(fft_2d_amp)
 plt.show()

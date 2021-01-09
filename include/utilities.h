@@ -3,13 +3,18 @@
 
 #include <iostream>
 #include <fstream>
+#include <memory>
+#include <unistd.h>
 #include <signal.h>
-#include <eigen3/Eigen/Eigen>
-#include <armadillo>
-#include <complex>
+#include <pthread.h>
+#include <mutex>
+
 #include <boost/asio.hpp>
 #include <boost/array.hpp>
 #include <boost/bind/bind.hpp>
+
+#include <eigen3/Eigen/Eigen>
+#include <complex>
 #include <opencv4/opencv2/opencv.hpp>
 
 using namespace boost::asio::ip;
@@ -22,6 +27,15 @@ namespace mmfusion
         CONFIGURED,
         RUNNING,
         FAILED
+    };
+
+    enum RWStatus
+    {
+        UNAVAILABLE,
+        WRITING,
+        READING,
+        AVAILABLE,
+        ACCESSED
     };
 
     struct SystemConf

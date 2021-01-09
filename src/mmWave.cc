@@ -9,6 +9,34 @@ namespace mmfusion
         this->_mutex = mut;
 
         this->_display_properties();
+
+        try
+        {
+            // instantiate & initialize serial port
+            boost::asio::io_service io;
+            this->_cmd_port_ptr = new boost::asio::serial_port(io);
+            this->_cmd_port_ptr->open(this->_cfg->cmd_port);
+
+            /* set up options for UART communication */
+            boost::asio::serial_port::baud_rate baud_rate(this->_cfg->baud_rate);
+            boost::asio::serial_port::flow_control flow_ctl(boost::asio::serial_port::flow_control::none);
+            boost::asio::serial_port::parity parity(boost::asio::serial_port::parity::none);
+            boost::asio::serial_port::character_size c_size(8);
+
+            this->_cmd_port_ptr->set_option(baud_rate);
+            this->_cmd_port_ptr->set_option(flow_ctl);
+            this->_cmd_port_ptr->set_option(parity);
+            this->_cmd_port_ptr->set_option(c_size);
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "\033[1;31m";
+            std::cerr << "Cannot open serial port: " << this->_cfg->cmd_port << std::endl;
+            std::cerr << "\033[0m";
+            std::cerr << e.what() << '\n';
+        }
+
+        return;
     }
 
     Radar::~Radar()
@@ -36,32 +64,6 @@ namespace mmfusion
 
     void Radar::configure()
     {
-        try
-        {
-            // instantiate & initialize serial port
-            boost::asio::io_service io;
-            this->_cmd_port_ptr = new boost::asio::serial_port(io);
-            this->_cmd_port_ptr->open(this->_cfg->cmd_port);
-        }
-        catch (const std::exception &e)
-        {
-            std::cerr << "\033[1;31m";
-            std::cerr << "Cannot open serial port: " << this->_cfg->cmd_port << std::endl;
-            std::cerr << "\033[0m";
-            std::cerr << e.what() << '\n';
-        }
-
-        /* set up options for UART communication */
-        boost::asio::serial_port::baud_rate baud_rate(this->_cfg->baud_rate);
-        boost::asio::serial_port::flow_control flow_ctl(boost::asio::serial_port::flow_control::none);
-        boost::asio::serial_port::parity parity(boost::asio::serial_port::parity::none);
-        boost::asio::serial_port::character_size c_size(8);
-
-        this->_cmd_port_ptr->set_option(baud_rate);
-        this->_cmd_port_ptr->set_option(flow_ctl);
-        this->_cmd_port_ptr->set_option(parity);
-        this->_cmd_port_ptr->set_option(c_size);
-
         /* send full profile configuration via serial port for initialization */
         for (auto cmd : this->_cfg->cmd_list)
         {
@@ -79,7 +81,7 @@ namespace mmfusion
             assert(!this->_read_from_serial(response));
             std::cout << response << std::endl;
 
-            usleep(25000);
+            usleep(50000);
         }
 
         this->_status = mmfusion::deviceStatus::CONFIGURED;
@@ -98,6 +100,11 @@ namespace mmfusion
             {
                 this->toggle();
             }
+            else if (std::strcmp(cmd.c_str(), "config") == 0)
+            {
+                // this->_cfg->reloadRadarCfg();
+                this->configure();
+            }
             else if (std::strcmp(cmd.c_str(), "exit") == 0)
             {
                 this->sensorStop();
@@ -106,6 +113,7 @@ namespace mmfusion
             }
         }
         std::cout << "Radar has been disengaged" << std::endl;
+
         return;
     }
 
@@ -233,26 +241,10 @@ namespace mmfusion
                     rx_code >>= 1;
                 }
 
-                // The number of set bits in Tx config does not directly /
-                // represent the number of equivalent Tx channels.
-                switch (tx_code)
+                while (tx_code != 0)
                 {
-                case 1: // Trivial case with Tx0 enabled
-                    tx_num = 1;
-                    break;
-                case 4: // Trivial case with Tx2 enabled
-                    tx_num = 1;
-                    break;
-                case 5: // Trivial case with both Tx0 and Tx2 enabled
-                    tx_num = 2;
-                    break;
-                case 7: // Non-Trivial case when all three Tx antennas are enabled /
-                    // Under this circumstance, antenna Tx1 expand the equivalent /
-                    // Rx array with an additional row.
-                    tx_num = 2;
-                    break;
-                default:
-                    break;
+                    tx_num += tx_code & 1;
+                    tx_code >>= 1;
                 }
             }
             // get ADC samples per chirp
@@ -274,7 +266,18 @@ namespace mmfusion
         /* calculate frame length */
         /* (IQ) * (16bits) * (number of Tx) * (number of Rx) * (ADC samples per chirp) * (chirps in a frame)*/
         this->_frame_len = 2 * 2 * tx_num * rx_num * adc_samples * chirps_per_frame;
+        std::cout << "Tx: " << this->tx_num << std::endl;
+        std::cout << "Rx: " << this->rx_num << std::endl;
+        std::cout << "ADC Samples: " << this->adc_samples << std::endl;
+        std::cout << "Loops: " << loops << std::endl;
+        std::cout << "Chirps per loop: " << chirps_per_loop << std::endl;
         std::cout << "[INFO] Frame length in bytes: " << this->_frame_len << std::endl;
+
+        // initializing data container
+        this->_raw_data.rw_lock = mmfusion::RWStatus::WRITING;
+        this->_raw_data.data_flattened = Eigen::MatrixXcd::Zero(this->adc_samples,
+                                                                this->rx_num * this->chirps_per_loop * this->loops);
+        this->_raw_data.rw_lock = mmfusion::RWStatus::UNAVAILABLE;
 
         // Queue the async receive task
         this->_start_receive();
@@ -295,65 +298,106 @@ namespace mmfusion
         return;
     }
 
-    void DCA1000::organize(std::vector<Eigen::MatrixXcd> &adc_block)
+    void DCA1000::_organize()
     {
-        adc_block.clear();
-
-        if (this->_frame_list.size() > 5)
+        if (this->_raw_data.rw_lock == READING)
         {
-            Eigen::VectorXi raw_adc(this->_frame_len >> 1);
-            DataFrame *active_frame = &this->_frame_list.front();
-            // serialize raw ADC data frame
-            size_t num_count = 0;
-            for (auto packet : active_frame->data)
+            return;
+        }
+
+        this->_raw_data.rw_lock = mmfusion::RWStatus::WRITING;
+
+        Eigen::VectorXi raw_adc(this->_frame_len >> 1);
+        DataFrame *active_frame = &this->_frame_list.back();
+
+        // serialize raw ADC data frame
+        size_t num_count = 0;
+        for (auto packet : active_frame->data)
+        {
+            for (auto data : packet.raw_adc)
             {
-                for (auto data : packet.raw_adc)
-                {
-                    raw_adc(num_count) = data;
-                    num_count++;
-                }
-            }
-
-            Eigen::Map<Eigen::MatrixXi> organized(raw_adc.data(),
-                                                  this->rx_num * this->tx_num * this->adc_samples * 2,
-                                                  this->loops * this->chirps_per_loop);
-
-            for (size_t chirp = 0; chirp < organized.cols(); ++chirp)
-            {
-                Eigen::Map<Eigen::MatrixXi> one_chirp(organized.col(chirp).data(),
-                                                      this->adc_samples * 2,
-                                                      this->rx_num * this->tx_num);
-
-                Eigen::MatrixXcd cplx_raw(this->rx_num * this->tx_num,
-                                          this->adc_samples);
-
-                for (size_t rx = 0; rx < this->rx_num * this->tx_num; ++rx)
-                {
-                    // Eigen::VectorXi one_rx = one_chirp.col(rx);
-                    Eigen::Map<Eigen::MatrixXi> one_rx(one_chirp.col(rx).data(),
-                                                       2, this->adc_samples);
-
-                    for (size_t sample = 0; sample < this->adc_samples; sample += 2)
-                    {
-                        cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(0, sample + 1),
-                                                               (int16_t)one_rx(0, sample));
-                    }
-                    for (size_t sample = 1; sample < this->adc_samples; sample += 2)
-                    {
-                        cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(1, sample),
-                                                               (int16_t)one_rx(1, sample - 1));
-                    }
-                }
-                adc_block.push_back(cplx_raw);
+                raw_adc(num_count) = data;
+                num_count++;
             }
         }
 
+        Eigen::Map<Eigen::MatrixXi> organized(raw_adc.data(),
+                                              this->rx_num * this->tx_num * this->adc_samples * 2,
+                                              this->loops * this->chirps_per_loop);
+
+        Eigen::MatrixXcd raw_temp = Eigen::MatrixXcd::Zero(this->_raw_data.data_flattened.rows(),
+                                                           this->_raw_data.data_flattened.cols());
+
+        /* Old documentation is correct */
+        for (size_t chirp = 0; chirp < organized.cols(); ++chirp)
+        {
+            Eigen::Map<Eigen::MatrixXi> one_chirp(organized.col(chirp).data(),
+                                                  this->adc_samples * 2,
+                                                  this->rx_num * this->tx_num);
+
+            Eigen::MatrixXcd cplx_raw(this->rx_num * this->tx_num,
+                                      this->adc_samples);
+
+            for (size_t rx = 0; rx < this->rx_num * this->tx_num; ++rx)
+            {
+                Eigen::Map<Eigen::MatrixXi> one_rx(one_chirp.col(rx).data(),
+                                                   2, this->adc_samples);
+
+                for (size_t sample = 0; sample < this->adc_samples; sample += 2)
+                {
+                    cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(0, sample + 1) * LSB,
+                                                           (int16_t)one_rx(0, sample) * LSB);
+                }
+                for (size_t sample = 1; sample < this->adc_samples; sample += 2)
+                {
+                    cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(1, sample) * LSB,
+                                                           (int16_t)one_rx(1, sample - 1) * LSB);
+                }
+            }
+            raw_temp.block(0, chirp * this->rx_num * this->tx_num,
+                           cplx_raw.cols(), cplx_raw.rows()) = cplx_raw.transpose();
+        }
+
+        /* re-arrange by Rx */
+        for (size_t rx = 0; rx < this->rx_num * this->tx_num; ++rx)
+        {
+            Eigen::MatrixXcd rx_n = Eigen::MatrixXcd::Map(raw_temp.data() + (rx * raw_temp.rows()),
+                                                          raw_temp.rows(),
+                                                          raw_temp.cols() / (this->rx_num * tx_num),
+                                                          Eigen::OuterStride<>(
+                                                              this->rx_num * this->tx_num * raw_temp.rows()));
+            this->_raw_data.data_flattened.block(0, rx * rx_n.cols(),
+                                                 rx_n.rows(), rx_n.cols()) = rx_n;
+        }
+
+        this->_raw_data.rw_lock = mmfusion::RWStatus::AVAILABLE;
         return;
     }
 
     mmfusion::deviceStatus DCA1000::getStatus()
     {
         return this->_status;
+    }
+
+    bool DCA1000::getRawData(Eigen::MatrixXcd &data)
+    {
+        bool ret = false;
+
+        if (this->_raw_data.rw_lock == ACCESSED)
+        {
+            ret = false;
+        }
+        else if (this->_raw_data.rw_lock == AVAILABLE &&
+                 this->_raw_data.data_flattened.rows() > 0 &&
+                 this->_raw_data.data_flattened.cols() > 0)
+        {
+            this->_raw_data.rw_lock = mmfusion::RWStatus::READING;
+            data = this->_raw_data.data_flattened;
+            this->_raw_data.rw_lock = mmfusion::RWStatus::ACCESSED;
+            ret = true;
+        }
+
+        return ret;
     }
 
     void DCA1000::_start_receive()
@@ -445,8 +489,13 @@ namespace mmfusion
                 // incrementation of frame id is unaffected.
                 new_frame.id = this->_frame_list.back().id + 1;
 
-                if (!this->_frame_check(this->_frame_list.back()))
+                if (this->_frame_check(this->_frame_list.back()))
                 {
+                    this->_organize();
+                }
+                else
+                {
+                    // bug occurs when loop is set to 64
                     std::cout << "\nFrame: " << this->_frame_list.back().id << " is probably malformed" << std::endl;
                     this->_frame_list.pop_back();
                 }

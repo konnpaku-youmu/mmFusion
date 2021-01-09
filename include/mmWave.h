@@ -7,6 +7,8 @@ using namespace boost::asio::ip;
 
 namespace mmfusion
 {
+    const double LSB = 3.3 / (1 << 15);
+
     struct
     {
         uint32_t seq;
@@ -21,6 +23,12 @@ namespace mmfusion
         size_t id;
         std::vector<RawDCAPacket> data;
     } typedef DataFrame;
+    
+    struct OrganizedADCData
+    {
+        mmfusion::RWStatus rw_lock = UNAVAILABLE;
+        Eigen::MatrixXcd data_flattened;
+    };
 
     class Radar : public MultiThreading, Device
     {
@@ -65,8 +73,11 @@ namespace mmfusion
 
         std::list<DataFrame> _frame_list;
 
+        OrganizedADCData _raw_data;
+
         int tx_num = 0, rx_num = 0,
-            adc_samples = 0, loops = 0, chirps_per_loop = 0;
+            adc_samples = 0, loops = 0,
+            chirps_per_loop = 0;
 
         void _make_packet(char **, char *, mmfusion::RawDCAPacket &);
 
@@ -75,6 +86,8 @@ namespace mmfusion
         void _start_receive();
 
         void _handle_receive(const boost::system::error_code, size_t);
+
+        void _organize();
 
     protected:
         void entryPoint();
@@ -86,9 +99,9 @@ namespace mmfusion
 
         void configure();
 
-        void organize(std::vector<Eigen::MatrixXcd> &);
-
         mmfusion::deviceStatus getStatus();
+
+        bool getRawData(Eigen::MatrixXcd &);
     };
 
 } // namespace mmfusion
