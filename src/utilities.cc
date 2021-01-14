@@ -141,6 +141,7 @@ namespace mmfusion
 
     void MultiThreading::stopThread()
     {
+        this->flag = 1;
         return (void)pthread_join(this->_thread, NULL);
     }
 
@@ -226,11 +227,11 @@ namespace mmfusion
     {
         std::string src = input;
         std::vector<std::string> res;
-        
+
         while (!src.empty())
         {
             size_t pos = src.find(delimiter);
-            if(pos != std::string::npos)
+            if (pos != std::string::npos)
             {
                 res.push_back(src.substr(0, pos));
                 src.erase(0, pos + delimiter.size());
@@ -240,9 +241,45 @@ namespace mmfusion
                 res.push_back(src);
                 break;
             }
-            
         }
+
+        return res;
+    }
+
+    void getNormMat(Eigen::MatrixXcd &src, Eigen::MatrixXd &dst)
+    {
+        dst = Eigen::MatrixXd::Zero(src.rows(), src.cols());
+        for (size_t row = 0; row < src.rows(); ++row)
+        {
+            for (size_t col = 0; col < src.cols(); ++col)
+            {
+                dst(row, col) = sqrt(src(row, col).real() * src(row, col).real() +
+                                     src(row, col).imag() * src(row, col).imag());
+            }
+        }
+        return;
+    }
+
+    Eigen::VectorXd cfarConv(Eigen::VectorXd &src, int window_size,
+                             int stride, double threshold)
+    {
+        assert(window_size > 3 && window_size % 2 == 1);
+        Eigen::VectorXd res = Eigen::VectorXd::Zero(src.rows());
+        Eigen::VectorXd kernel = Eigen::VectorXd::Zero(window_size);
+
+        // construct conv kernel
+        int valid_cell = window_size / 4;
+        for (int i = 0; i < valid_cell; ++i)
+        {
+            kernel(window_size - i - 1) = kernel(i) = -threshold * (0.5 / valid_cell);
+        }
+        kernel(window_size / 2) = 1;
         
+        for (int i = window_size / 2; i < src.rows() - (window_size / 2); i += stride)
+        {
+            res(i) = src.segment(i - (window_size / 2), window_size).dot(kernel);
+        }
+
         return res;
     }
 } // namespace mmfusion

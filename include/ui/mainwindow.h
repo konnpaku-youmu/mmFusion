@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 
+#include "../../src/ui/ui_mainwindow.h"
 #include "mmWave.h"
 #include "signalProc.h"
 
@@ -32,11 +33,9 @@ private slots:
 
     void on_plot_clicked();
 
-    void on_comboBox_currentIndexChanged(const QString &arg1);
-
     void refresh_plot();
 
-    void on_comboBox_currentIndexChanged(int index);
+    void on_antennaBox_currentIndexChanged(int index);
 
     void on_spinBox_valueChanged(int arg1);
 
@@ -47,7 +46,15 @@ private:
 
     mmfusion::Radar *_radar;
 
+    QVector<double> qv_fft_avg;
+
+    QCPColorMap *colorMap;
+
+    QCPColorScale *colorScale;
+
     bool _enable_plot;
+
+    uint32_t _frame_cnt;
 
     int _plot_antenna;
 

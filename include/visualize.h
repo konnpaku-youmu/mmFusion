@@ -13,17 +13,15 @@ namespace mmfusion
     class DataPlotWrapper
     {
     private:
+        mmfusion::SystemConf *_cfg;
+        
         QApplication *_app;
 
         MainWindow *_window;
 
-        mmfusion::DCA1000 *_data_source;
-
-        mmfusion::Radar *_radar;
-
     public:
-        DataPlotWrapper(int argc, char **argv, mmfusion::Radar &,
-                        mmfusion::SignalProcessor &);
+        DataPlotWrapper(int argc, char **argv, mmfusion::SystemConf &,
+                        mmfusion::Radar &, mmfusion::SignalProcessor &);
 
         ~DataPlotWrapper();
 

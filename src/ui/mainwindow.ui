@@ -137,26 +137,6 @@
        <string>Antenna:</string>
       </property>
      </widget>
-     <widget class="QComboBox" name="comboBox">
-      <property name="geometry">
-       <rect>
-        <x>700</x>
-        <y>15</y>
-        <width>161</width>
-        <height>30</height>
-       </rect>
-      </property>
-      <item>
-       <property name="text">
-        <string>1D-FFT (Range)</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string> 2D-FFT (Velocity)</string>
-       </property>
-      </item>
-     </widget>
      <widget class="QSpinBox" name="spinBox">
       <property name="geometry">
        <rect>
@@ -191,8 +171,18 @@
     </widget>
     <widget class="QWidget" name="tab_2">
      <attribute name="title">
-      <string>Detection</string>
+      <string>Spectrogram</string>
      </attribute>
+     <widget class="QCustomPlot" name="spectro" native="true">
+      <property name="geometry">
+       <rect>
+        <x>50</x>
+        <y>25</y>
+        <width>1200</width>
+        <height>400</height>
+       </rect>
+      </property>
+     </widget>
     </widget>
    </widget>
    <zorder>tabs</zorder>

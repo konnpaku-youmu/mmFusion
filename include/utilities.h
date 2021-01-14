@@ -47,7 +47,7 @@ namespace mmfusion
         std::string calib_conf_path;
         cv::Mat camera_mat;
         cv::Mat dist_coeffs;
-        
+
         // inference related
         std::string yolo_cfg;
         std::string yolo_weights;
@@ -59,15 +59,16 @@ namespace mmfusion
         std::string radar_model;
         std::string cmd_port;
         int baud_rate;
+        int tx_num = 0, rx_num = 0;
         std::vector<std::string> cmd_list;
-        
+
         // DCA1000 related
         std::string dca_addr;
         int dca_data_port;
         int dca_cmd_port;
         std::string trigger_mode;
         std::string dca_cfg_path;
-        
+
         SystemConf(const std::string &);
     };
 
@@ -79,6 +80,8 @@ namespace mmfusion
         static void *_internal_thread_entry(void *);
 
     protected:
+        uint8_t flag = 0;
+
         pthread_mutex_t _mutex;
 
         virtual void entryPoint() = 0;
@@ -97,13 +100,13 @@ namespace mmfusion
         mmfusion::SystemConf *_cfg;
 
         mmfusion::deviceStatus _status;
-    
+
     public:
         Device() {}
 
         virtual void configure() = 0;
     };
-    
+
     struct DetectedObj
     {
         int classID = -1;
@@ -118,6 +121,11 @@ namespace mmfusion
     void padding(cv::Mat &, cv::Mat &);
 
     std::vector<std::string> split(std::string &, const std::string &);
+
+    void getNormMat(Eigen::MatrixXcd &, Eigen::MatrixXd &);
+
+    Eigen::VectorXd cfarConv(Eigen::VectorXd &, int window_size = 9,
+                              int stride = 1, double threshold = 3.0);
 } // namespace mmfusion
 
 #endif
