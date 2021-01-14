@@ -10,34 +10,45 @@ namespace mmfusion
 {
     struct
     {
-        Eigen::MatrixXcd coeffs;
+        Eigen::MatrixXcd raw;
+        Eigen::MatrixXcd fft_1d;
+        Eigen::MatrixXd cfar_1d;
+        Eigen::MatrixXcd fft_2d;
         mmfusion::RWStatus rw_lock;
-    } typedef FFTData;
+    } typedef ProcOutput;
 
     class SignalProcessor : public MultiThreading
     {
     private:
+        mmfusion::SystemConf *_cfg;
+
         mmfusion::DCA1000 *_capture_board;
 
-        Eigen::MatrixXcd _raw_data;
+        int virtualAnt = 0, loops = 0, adc_samples = 0;
 
-        OrganizedADCData _raw_bypass;
+        ProcOutput _output;
 
-        FFTData _frame_1d_fft;
+        void _process();
 
         void _compute_1d_fft();
+
+        void _compute_2d_fft();
+
+        void _cfar(Eigen::MatrixXcd &);
 
     protected:
         void entryPoint();
 
     public:
-        SignalProcessor();
+        SignalProcessor(mmfusion::SystemConf &,
+                        pthread_mutex_t &);
 
         ~SignalProcessor();
 
         void bindDevice(mmfusion::DCA1000 &);
 
-        bool getData(Eigen::MatrixXcd &, Eigen::MatrixXcd &);
+        bool getData(Eigen::MatrixXcd &, Eigen::MatrixXcd &,
+                     Eigen::MatrixXcd &, Eigen::MatrixXd &);
     };
 } // namespace mmfusion
 

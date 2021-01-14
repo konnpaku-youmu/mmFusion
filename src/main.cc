@@ -25,13 +25,19 @@ int main(int argc, char **argv)
     radar.startThread(attr);
     data_cap.startThread(attr);
 
-    mmfusion::SignalProcessor sp;
+    mmfusion::SignalProcessor sp(cfg, mut);
     sp.bindDevice(data_cap);
     sp.startThread(attr);
 
     /* Start GUI */
-    mmfusion::DataPlotWrapper plt(argc, argv, radar, sp);
+    mmfusion::DataPlotWrapper plt(argc, argv, cfg, radar, sp);
     plt.show();
+
+    sp.stopThread();
+    data_cap.stopThread();
+    radar.stopThread();
+
+    std::cout << "quit" << std::endl;
 
     pthread_attr_destroy(&attr);
     pthread_mutex_destroy(&mut);

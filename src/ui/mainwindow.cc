@@ -1,5 +1,4 @@
 #include "mainwindow.h"
-#include "./ui_mainwindow.h"
 #include <iostream>
 
 MainWindow::MainWindow(QWidget *parent)
@@ -10,11 +9,12 @@ MainWindow::MainWindow(QWidget *parent)
     this->_enable_plot = false;
     this->_plot_antenna = 0;
     this->_plot_chirp = 0;
+    this->_frame_cnt = 0;
 
     // automatically refresh plot every 50ms
     QTimer *timer = new QTimer(this);
     connect(timer, SIGNAL(timeout()), this, SLOT(refresh_plot()));
-    timer->start(50);
+    timer->start(2);
 
     // add wave form plotter
     ui->timeDomain->addGraph(); // real
@@ -63,7 +63,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // add FFT plotter
     ui->freqDomain->addGraph();
-    ui->freqDomain->yAxis->setRange(-2, 30);
+    ui->freqDomain->yAxis->setRange(-2, 25);
     ui->freqDomain->xAxis->setLabel("Frequency");
     ui->freqDomain->yAxis->setLabel("Amplitude");
     ui->freqDomain->xAxis2->setVisible(true);
@@ -81,6 +81,24 @@ MainWindow::MainWindow(QWidget *parent)
     ui->freqDomain->graph(0)->setLineStyle(QCPGraph::LineStyle::lsStepCenter);
     ui->freqDomain->graph(0)->setScatterStyle(QCPScatterStyle::ssNone);
     ui->freqDomain->graph(0)->setName("Norm");
+
+    ui->freqDomain->addGraph();
+    ui->freqDomain->graph(1)->setLineStyle(QCPGraph::LineStyle::lsNone);
+    ui->freqDomain->graph(1)->setScatterStyle(QCPScatterStyle::ssCircle);
+    ui->freqDomain->graph(1)->setName("CFAR");
+
+    // plot spectrogram
+    ui->spectro->axisRect()->setupFullAxesBox(true);
+    colorMap = new QCPColorMap(ui->spectro->xAxis, ui->spectro->yAxis);
+    colorScale = new QCPColorScale(ui->spectro);
+    ui->spectro->plotLayout()->addElement(0, 1, colorScale);
+    ui->spectro->xAxis->setLabel("Chirps");
+    ui->spectro->yAxis->setLabel("Velocity (m/s)");
+    ui->spectro->xAxis2->setVisible(true);
+    ui->spectro->xAxis2->setTickLabels(false);
+    ui->spectro->yAxis2->setVisible(true);
+    ui->spectro->yAxis2->setTickLabels(false);
+    ui->spectro->legend->setVisible(false);
 }
 
 MainWindow::~MainWindow()
@@ -98,7 +116,9 @@ void MainWindow::bindDevice(mmfusion::Radar &dev,
 
 void MainWindow::on_quit_clicked()
 {
-    this->close();
+    this->_radar->sensorStop();
+    QApplication::closeAllWindows();
+    QApplication::quit();
 }
 
 void MainWindow::on_toggleSensor_clicked()
@@ -129,27 +149,6 @@ void MainWindow::on_plot_clicked()
     }
 }
 
-void MainWindow::on_comboBox_currentIndexChanged(const QString &arg1)
-{
-    if (arg1 == "Rx0")
-    {
-        this->_plot_antenna = 0;
-    }
-    else if (arg1 == "Rx1")
-    {
-        this->_plot_antenna = 1;
-    }
-    else if (arg1 == "Rx2")
-    {
-        this->_plot_antenna = 2;
-    }
-    else if (arg1 == "Rx3")
-    {
-        this->_plot_antenna = 3;
-    }
-    return;
-}
-
 void MainWindow::refresh_plot()
 {
     if (!_enable_plot)
@@ -157,24 +156,33 @@ void MainWindow::refresh_plot()
         return;
     }
 
-    Eigen::MatrixXcd raw_data, fft;
+    Eigen::MatrixXcd raw_data, fft, _2d_fft;
+    Eigen::MatrixXd cfar;
 
-    if (this->_proc->getData(raw_data, fft))
+    if (this->_proc->getData(raw_data, fft, _2d_fft, cfar))
     {
-        Eigen::MatrixXcd rx_0 = raw_data.block(0, 0, raw_data.rows(), 32);
-        
-        Eigen::VectorXcd fft0 = fft.col(0);
+        Eigen::MatrixXcd rx_n = raw_data.block(0, 32 * this->_plot_antenna,
+                                               raw_data.rows(), 32);
 
-        ui->spinBox->setRange(0, rx_0.cols() - 1);
+        Eigen::MatrixXcd fft_n = fft.block(0, 32 * this->_plot_antenna,
+                                           fft.rows(), 32);
+
+        Eigen::MatrixXd cfar_n = cfar.block(0, 32 * this->_plot_antenna,
+                                            cfar.rows(), 32);
+
+        Eigen::MatrixXcd fft_2d_n = _2d_fft.block(0, 32 * this->_plot_antenna,
+                                                  _2d_fft.rows(), 32);
+
+        ui->spinBox->setRange(0, rx_n.cols() - 1);
 
         QVector<double> qv_x, qv_y_i, qv_y_q, qv_y_n;
-        for (size_t row = 0; row < rx_0.rows(); ++row)
+        for (size_t row = 0; row < rx_n.rows(); ++row)
         {
             qv_x.append(row);
-            qv_y_i.append(rx_0(row, this->_plot_chirp).real());
-            qv_y_q.append(rx_0(row, this->_plot_chirp).imag());
-            double norm = sqrt(rx_0(row, this->_plot_chirp).real() * rx_0(row, this->_plot_chirp).real() +
-                               rx_0(row, this->_plot_chirp).imag() * rx_0(row, this->_plot_chirp).imag());
+            qv_y_i.append(rx_n(row, this->_plot_chirp).real());
+            qv_y_q.append(rx_n(row, this->_plot_chirp).imag());
+            double norm = sqrt(rx_n(row, this->_plot_chirp).real() * rx_n(row, this->_plot_chirp).real() +
+                               rx_n(row, this->_plot_chirp).imag() * rx_n(row, this->_plot_chirp).imag());
 
             qv_y_n.append(norm);
         }
@@ -182,29 +190,82 @@ void MainWindow::refresh_plot()
         ui->timeDomain->graph(0)->setData(qv_x, qv_y_i);
         ui->timeDomain->graph(1)->setData(qv_x, qv_y_q);
         ui->timeDomain->graph(2)->setData(qv_x, qv_y_n);
-
-        QVector<double> qv_x_fft, qv_fft;
-        for(size_t row = 0; row < fft0.rows(); ++row)
-        {
-            qv_x_fft.append(row);
-            double norm = sqrt(fft0(row).real() * fft0(row).real() +
-                               fft0(row).imag() * fft0(row).imag());
-            qv_fft.append(norm);
-        }
-        ui->freqDomain->xAxis->setRange(0, fft0.rows());
-        ui->freqDomain->graph(0)->setData(qv_x_fft, qv_fft);
-
         ui->timeDomain->replot();
         ui->timeDomain->update();
+
+        QVector<double> qv_x_fft, qv_fft;
+        for (size_t row = 0; row < fft_n.rows(); ++row)
+        {
+            qv_x_fft.append(row);
+            double norm = sqrt(fft_n(row, this->_plot_chirp).real() * fft_n(row, this->_plot_chirp).real() +
+                               fft_n(row, this->_plot_chirp).imag() * fft_n(row, this->_plot_chirp).imag());
+            qv_fft.append(norm);
+        }
+        QVector<double> qv_cfar;
+
+        for (size_t row = 0; row < cfar_n.rows(); ++row)
+        {
+            if (cfar(row, this->_plot_chirp) > 0.5)
+            {
+                qv_cfar.append(cfar(row, this->_plot_chirp));
+            }
+            else
+            {
+                qv_cfar.append(0);
+            }
+            
+        }
+
+        ui->freqDomain->xAxis->setRange(0, fft_n.rows());
+        ui->freqDomain->graph(0)->setData(qv_x_fft, qv_fft);
+        ui->freqDomain->graph(1)->setData(qv_x_fft, qv_cfar);
         ui->freqDomain->replot();
         ui->freqDomain->update();
+
+        colorMap->data()->setSize(256, 32);
+        colorMap->data()->setRange(QCPRange(0, 256), QCPRange(-1.01, 1.01));
+
+        Eigen::VectorXcd doppler = _2d_fft.colwise().sum();
+
+        Eigen::VectorXcd doppler_n = Eigen::VectorXcd::Zero(32);
+        for (size_t i = 16; i < 48; ++i)
+        {
+            doppler_n(i - 16) = doppler(i % 32);
+        }
+
+        double x, y, z;
+
+        for (int yIndex = 0; yIndex < 32; ++yIndex)
+        {
+            colorMap->data()->cellToCoord(0, yIndex, &x, &y);
+            double norm = log(sqrt(doppler_n(yIndex).real() * doppler_n(yIndex).real() +
+                                   doppler_n(yIndex).imag() * doppler_n(yIndex).imag()));
+            z = norm;
+            colorMap->data()->setCell(this->_frame_cnt, yIndex, z);
+        }
+
+        this->_frame_cnt++;
+
+        if (this->_frame_cnt > 255)
+        {
+            this->_frame_cnt = 0;
+        }
+
+        colorScale->setType(QCPAxis::atRight);
+        colorMap->setColorScale(colorScale);
+        colorMap->setGradient(QCPColorGradient::gpJet);
+
+        ui->spectro->rescaleAxes();
+        ui->spectro->replot();
     }
 
     return;
 }
 
-void MainWindow::on_comboBox_currentIndexChanged(int index)
+void MainWindow::on_antennaBox_currentIndexChanged(int index)
 {
+    this->_plot_antenna = index;
+    return;
 }
 
 void MainWindow::on_spinBox_valueChanged(int arg1)

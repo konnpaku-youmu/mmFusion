@@ -41,6 +41,7 @@ namespace mmfusion
 
     Radar::~Radar()
     {
+        delete this->_cmd_port_ptr;
     }
 
     void Radar::_display_properties()
@@ -91,29 +92,7 @@ namespace mmfusion
 
     void Radar::entryPoint()
     {
-        std::string cmd;
-        for (;;)
-        {
-            std::cout << "\nmmWave >> ";
-            std::getline(std::cin, cmd);
-            if (cmd.empty())
-            {
-                this->toggle();
-            }
-            else if (std::strcmp(cmd.c_str(), "config") == 0)
-            {
-                // this->_cfg->reloadRadarCfg();
-                this->configure();
-            }
-            else if (std::strcmp(cmd.c_str(), "exit") == 0)
-            {
-                this->sensorStop();
-                this->stopThread();
-                break;
-            }
-        }
-        std::cout << "Radar has been disengaged" << std::endl;
-
+        while (!flag);
         return;
     }
 
@@ -246,6 +225,8 @@ namespace mmfusion
                     tx_num += tx_code & 1;
                     tx_code >>= 1;
                 }
+                this->_cfg->tx_num = tx_num;
+                this->_cfg->rx_num = rx_num;
             }
             // get ADC samples per chirp
             else if (cmd.find("profileCfg") != std::string::npos)
@@ -289,12 +270,12 @@ namespace mmfusion
 
     DCA1000::~DCA1000()
     {
+        delete this->_socket;
     }
 
     void DCA1000::entryPoint()
     {
         this->_io_srv.run();
-
         return;
     }
 
@@ -402,9 +383,15 @@ namespace mmfusion
 
     void DCA1000::_start_receive()
     {
+        if (flag)
+        {
+            // if Multithread::flag is raised, stop entryPoint() thus join the thread
+            this->_io_srv.stop();
+        }
+
         this->_status = mmfusion::deviceStatus::CONFIGURED;
-        // limit the size of frame collection to 100 frames
-        if (this->_frame_list.size() > 10)
+        // limit the size of frame collection to 5 frames
+        if (this->_frame_list.size() > 5)
         {
             _frame_list.pop_front();
         }
