@@ -59,8 +59,12 @@ namespace mmfusion
 
     void SignalProcessor::_compute_1d_fft()
     {
+#pragma omp parallel
+#pragma omp for
         for (int rx = 0; rx < this->virtualAnt; ++rx)
         {
+#pragma omp parallel
+#pragma omp for
             for (int chirp = 0; chirp < this->loops; ++chirp)
             {
                 double fft_container[2 * this->adc_samples];
@@ -89,8 +93,12 @@ namespace mmfusion
 
     void SignalProcessor::_compute_2d_fft()
     {
+#pragma omp parallel
+#pragma omp for
         for (int rx = 0; rx < this->virtualAnt; ++rx)
         {
+#pragma omp parallel
+#pragma omp for
             for (int sample = 0; sample < this->adc_samples; ++sample)
             {
                 double fft_container[2 * this->loops];
@@ -100,6 +108,8 @@ namespace mmfusion
                                                                            1, this->loops);
                 Eigen::dcomplex dc_sum = rx_n_range_k.sum();
 
+#pragma omp parallel
+#pragma omp for
                 for (int chirp = 0; chirp < this->loops; ++chirp)
                 {
                     rx_n_range_k(0, chirp) -= dc_sum;
@@ -108,6 +118,8 @@ namespace mmfusion
                 }
                 /* compute 2D-FFT */
                 gsl_fft_complex_radix2_forward(fft_container, 1, this->loops);
+#pragma omp parallel
+#pragma omp for
                 for (int i = 0; i < 2 * this->loops; i += 2)
                 {
                     Eigen::dcomplex cmplx(fft_container[i], fft_container[i + 1]);
@@ -126,14 +138,15 @@ namespace mmfusion
 
         this->_output.cfar_1d = Eigen::MatrixXd::Zero(fft_norm.rows(),
                                                       fft_norm.cols());
-
-        for (int col = 0; col < fft_norm.cols(); ++col)
+        int col;
+#pragma omp parallel
+#pragma omp for private(col)
+        for (col = 0; col < fft_norm.cols(); ++col)
         {
             Eigen::VectorXd col_vec = fft_norm.col(col);
-            Eigen::VectorXd cfar = mmfusion::cfarConv(col_vec, 7, 1, 5.0);
-            Eigen::VectorXd cfar_with_sigmoid = 10 / (1 + (1 / Eigen::exp(cfar.array()))) - 5;
-            
-            this->_output.cfar_1d.col(col) = cfar_with_sigmoid;
+            Eigen::VectorXd cfar = mmfusion::cfarConv(col_vec, 11, 1, 2.0);
+
+            this->_output.cfar_1d.col(col) = cfar;
         }
 
         return;

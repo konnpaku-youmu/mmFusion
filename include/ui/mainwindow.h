@@ -23,7 +23,7 @@ public:
 
     ~MainWindow();
 
-    void bindDevice(mmfusion::Radar &,
+    void bindDevice(mmfusion::SystemConf &, mmfusion::Radar &,
                     mmfusion::SignalProcessor &);
 
 private slots:
@@ -41,6 +41,8 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
+    
+    mmfusion::SystemConf *_cfg;
 
     mmfusion::SignalProcessor *_proc;
 

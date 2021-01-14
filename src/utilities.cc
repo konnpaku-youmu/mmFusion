@@ -249,9 +249,13 @@ namespace mmfusion
     void getNormMat(Eigen::MatrixXcd &src, Eigen::MatrixXd &dst)
     {
         dst = Eigen::MatrixXd::Zero(src.rows(), src.cols());
-        for (size_t row = 0; row < src.rows(); ++row)
+        size_t row;
+#pragma omp parallel
+#pragma omp for
+        for (row = 0; row < src.rows(); ++row)
         {
-            for (size_t col = 0; col < src.cols(); ++col)
+            size_t col;
+            for (col = 0; col < src.cols(); ++col)
             {
                 dst(row, col) = sqrt(src(row, col).real() * src(row, col).real() +
                                      src(row, col).imag() * src(row, col).imag());
@@ -274,7 +278,9 @@ namespace mmfusion
             kernel(window_size - i - 1) = kernel(i) = -threshold * (0.5 / valid_cell);
         }
         kernel(window_size / 2) = 1;
-        
+
+#pragma omp parallel
+#pragma omp for
         for (int i = window_size / 2; i < src.rows() - (window_size / 2); i += stride)
         {
             res(i) = src.segment(i - (window_size / 2), window_size).dot(kernel);

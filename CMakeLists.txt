@@ -11,6 +11,7 @@ add_compile_options(-std=c++17)
 
 find_package(OpenCV REQUIRED)
 find_package(GSL REQUIRED)
+find_package(OpenMP REQUIRED)
 find_package(Boost 1.72 REQUIRED)
 find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets REQUIRED)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets PrintSupport REQUIRED)
@@ -42,7 +43,7 @@ target_link_libraries(${PROJECT_NAME}
   -lpthread
   -pthread
   ${OpenCV_LIBS}
-
+  OpenMP::OpenMP_CXX
   Qt${QT_VERSION_MAJOR}::Widgets 
   Qt${QT_VERSION_MAJOR}::PrintSupport
   GSL::gsl
