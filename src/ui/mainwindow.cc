@@ -106,9 +106,10 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::bindDevice(mmfusion::Radar &dev,
+void MainWindow::bindDevice(mmfusion::SystemConf &cfg, mmfusion::Radar &dev,
                             mmfusion::SignalProcessor &proc)
 {
+    this->_cfg = &cfg;
     this->_radar = &dev;
     this->_proc = &proc;
     return;
@@ -161,17 +162,20 @@ void MainWindow::refresh_plot()
 
     if (this->_proc->getData(raw_data, fft, _2d_fft, cfar))
     {
-        Eigen::MatrixXcd rx_n = raw_data.block(0, 32 * this->_plot_antenna,
-                                               raw_data.rows(), 32);
+        int virtualAnt = this->_cfg->tx_num * this->_cfg->rx_num;
+        int loops = raw_data.cols() / virtualAnt;
 
-        Eigen::MatrixXcd fft_n = fft.block(0, 32 * this->_plot_antenna,
-                                           fft.rows(), 32);
+        Eigen::MatrixXcd rx_n = raw_data.block(0, loops * this->_plot_antenna,
+                                               raw_data.rows(), loops);
 
-        Eigen::MatrixXd cfar_n = cfar.block(0, 32 * this->_plot_antenna,
-                                            cfar.rows(), 32);
+        Eigen::MatrixXcd fft_n = fft.block(0, loops * this->_plot_antenna,
+                                           fft.rows(), loops);
 
-        Eigen::MatrixXcd fft_2d_n = _2d_fft.block(0, 32 * this->_plot_antenna,
-                                                  _2d_fft.rows(), 32);
+        Eigen::MatrixXd cfar_n = cfar.block(0, loops * this->_plot_antenna,
+                                            cfar.rows(), loops);
+
+        Eigen::MatrixXcd fft_2d_n = _2d_fft.block(0, loops * this->_plot_antenna,
+                                                  _2d_fft.rows(), loops);
 
         ui->spinBox->setRange(0, rx_n.cols() - 1);
 
@@ -201,19 +205,20 @@ void MainWindow::refresh_plot()
                                fft_n(row, this->_plot_chirp).imag() * fft_n(row, this->_plot_chirp).imag());
             qv_fft.append(norm);
         }
-        QVector<double> qv_cfar;
 
+        QVector<double> qv_cfar;
+        std::vector<int> active_cell;
         for (size_t row = 0; row < cfar_n.rows(); ++row)
         {
             if (cfar(row, this->_plot_chirp) > 0.5)
             {
                 qv_cfar.append(cfar(row, this->_plot_chirp));
+                active_cell.push_back(row);
             }
             else
             {
                 qv_cfar.append(0);
             }
-            
         }
 
         ui->freqDomain->xAxis->setRange(0, fft_n.rows());
@@ -222,20 +227,30 @@ void MainWindow::refresh_plot()
         ui->freqDomain->replot();
         ui->freqDomain->update();
 
-        colorMap->data()->setSize(256, 32);
-        colorMap->data()->setRange(QCPRange(0, 256), QCPRange(-1.01, 1.01));
+        colorMap->data()->setSize(512, loops);
+        colorMap->data()->setRange(QCPRange(0, 512), QCPRange(-1.01, 1.01));
 
-        Eigen::VectorXcd doppler = _2d_fft.colwise().sum();
+        Eigen::VectorXcd doppler = Eigen::VectorXcd::Zero(_2d_fft.cols());
 
-        Eigen::VectorXcd doppler_n = Eigen::VectorXcd::Zero(32);
-        for (size_t i = 16; i < 48; ++i)
+        for (auto dist : active_cell)
         {
-            doppler_n(i - 16) = doppler(i % 32);
+#pragma omp parallel
+#pragma omp for
+            for (int col = 0; col < _2d_fft.cols(); ++col)
+            {
+                doppler(col) += _2d_fft(dist, col);
+            }
+        }
+
+        Eigen::VectorXcd doppler_n = Eigen::VectorXcd::Zero(loops);
+        for (size_t i = loops / 2; i < (3 * loops / 2); ++i)
+        {
+            doppler_n(i - (loops / 2)) = doppler(i % loops);
         }
 
         double x, y, z;
 
-        for (int yIndex = 0; yIndex < 32; ++yIndex)
+        for (int yIndex = 0; yIndex < loops; ++yIndex)
         {
             colorMap->data()->cellToCoord(0, yIndex, &x, &y);
             double norm = log(sqrt(doppler_n(yIndex).real() * doppler_n(yIndex).real() +
@@ -246,7 +261,7 @@ void MainWindow::refresh_plot()
 
         this->_frame_cnt++;
 
-        if (this->_frame_cnt > 255)
+        if (this->_frame_cnt > 511)
         {
             this->_frame_cnt = 0;
         }

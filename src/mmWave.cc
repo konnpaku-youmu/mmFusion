@@ -82,7 +82,7 @@ namespace mmfusion
             assert(!this->_read_from_serial(response));
             std::cout << response << std::endl;
 
-            usleep(50000);
+            usleep(100000);
         }
 
         this->_status = mmfusion::deviceStatus::CONFIGURED;
@@ -92,7 +92,8 @@ namespace mmfusion
 
     void Radar::entryPoint()
     {
-        while (!flag);
+        while (!flag)
+            ;
         return;
     }
 
@@ -309,7 +310,9 @@ namespace mmfusion
         Eigen::MatrixXcd raw_temp = Eigen::MatrixXcd::Zero(this->_raw_data.data_flattened.rows(),
                                                            this->_raw_data.data_flattened.cols());
 
-        /* Old documentation is correct */
+/* Old documentation is correct */
+#pragma omp parallel
+#pragma omp for
         for (size_t chirp = 0; chirp < organized.cols(); ++chirp)
         {
             Eigen::Map<Eigen::MatrixXi> one_chirp(organized.col(chirp).data(),
@@ -318,17 +321,21 @@ namespace mmfusion
 
             Eigen::MatrixXcd cplx_raw(this->rx_num * this->tx_num,
                                       this->adc_samples);
-
+#pragma omp parallel
+#pragma omp for
             for (size_t rx = 0; rx < this->rx_num * this->tx_num; ++rx)
             {
                 Eigen::Map<Eigen::MatrixXi> one_rx(one_chirp.col(rx).data(),
                                                    2, this->adc_samples);
-
+#pragma omp parallel
+#pragma omp for
                 for (size_t sample = 0; sample < this->adc_samples; sample += 2)
                 {
                     cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(0, sample + 1) * LSB,
                                                            (int16_t)one_rx(0, sample) * LSB);
                 }
+#pragma omp parallel
+#pragma omp for
                 for (size_t sample = 1; sample < this->adc_samples; sample += 2)
                 {
                     cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(1, sample) * LSB,
@@ -340,6 +347,8 @@ namespace mmfusion
         }
 
         /* re-arrange by Rx */
+#pragma omp parallel
+#pragma omp for
         for (size_t rx = 0; rx < this->rx_num * this->tx_num; ++rx)
         {
             Eigen::MatrixXcd rx_n = Eigen::MatrixXcd::Map(raw_temp.data() + (rx * raw_temp.rows()),
@@ -534,6 +543,11 @@ namespace mmfusion
 
         seq_diff = frame.data.back().seq - frame.data.front().seq + 1;
         byte_count_diff = frame.data.back().byte_cnt - frame.data.front().byte_cnt;
+
+        if (total_len != this->_frame_len)
+        {
+            std::cout << "Length mismatched: " << total_len << " should be " << this->_frame_len << std::endl;
+        }
 
         return (total_len == this->_frame_len);
     }

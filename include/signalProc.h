@@ -4,6 +4,7 @@
 #include "utilities.h"
 #include "mmWave.h"
 
+#include <fftw3.h>
 #include <gsl/gsl_fft_complex.h>
 
 namespace mmfusion

@@ -11,7 +11,7 @@ namespace mmfusion
         this->_app = new QApplication(argc, argv);
         this->_window = new MainWindow();
 
-        this->_window->bindDevice(radar, proc);
+        this->_window->bindDevice(cfg, radar, proc);
 
         return;
     }
