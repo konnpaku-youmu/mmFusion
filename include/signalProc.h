@@ -4,8 +4,11 @@
 #include "utilities.h"
 #include "mmWave.h"
 
-#include <fftw3.h>
+#ifdef WITH_CUDA
+#include <cufft.h>
+#else
 #include <gsl/gsl_fft_complex.h>
+#endif
 
 namespace mmfusion
 {
@@ -26,6 +29,10 @@ namespace mmfusion
         mmfusion::DCA1000 *_capture_board;
 
         int virtualAnt = 0, loops = 0, adc_samples = 0;
+
+#ifdef WITH_CUDA
+        cufftHandle *_plan;
+#endif
 
         ProcOutput _output;
 

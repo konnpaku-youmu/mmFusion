@@ -234,6 +234,7 @@ namespace mmfusion
             {
                 tokens = split(cmd, " ");
                 adc_samples = std::stoi(tokens[10]);
+                this->_cfg->adc_samples = this->adc_samples;
             }
             // get number of chirps in one single frame
             else if (cmd.find("frameCfg") != std::string::npos)
@@ -294,6 +295,7 @@ namespace mmfusion
 
         // serialize raw ADC data frame
         size_t num_count = 0;
+        // #pragma omp parallel for private(num_count)
         for (auto packet : active_frame->data)
         {
             for (auto data : packet.raw_adc)
@@ -310,10 +312,10 @@ namespace mmfusion
         Eigen::MatrixXcd raw_temp = Eigen::MatrixXcd::Zero(this->_raw_data.data_flattened.rows(),
                                                            this->_raw_data.data_flattened.cols());
 
-/* Old documentation is correct */
-#pragma omp parallel
-#pragma omp for
-        for (size_t chirp = 0; chirp < organized.cols(); ++chirp)
+        /* Old documentation is correct */
+        size_t chirp, rx, sample;
+#pragma omp parallel for private(chirp)
+        for (chirp = 0; chirp < organized.cols(); ++chirp)
         {
             Eigen::Map<Eigen::MatrixXi> one_chirp(organized.col(chirp).data(),
                                                   this->adc_samples * 2,
@@ -321,25 +323,27 @@ namespace mmfusion
 
             Eigen::MatrixXcd cplx_raw(this->rx_num * this->tx_num,
                                       this->adc_samples);
-#pragma omp parallel
-#pragma omp for
-            for (size_t rx = 0; rx < this->rx_num * this->tx_num; ++rx)
+#pragma omp parallel for private(rx)
+            for (rx = 0; rx < this->rx_num * this->tx_num; ++rx)
             {
                 Eigen::Map<Eigen::MatrixXi> one_rx(one_chirp.col(rx).data(),
                                                    2, this->adc_samples);
-#pragma omp parallel
-#pragma omp for
-                for (size_t sample = 0; sample < this->adc_samples; sample += 2)
+#pragma omp parallel sections
                 {
-                    cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(0, sample + 1) * LSB,
-                                                           (int16_t)one_rx(0, sample) * LSB);
-                }
-#pragma omp parallel
-#pragma omp for
-                for (size_t sample = 1; sample < this->adc_samples; sample += 2)
-                {
-                    cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(1, sample) * LSB,
-                                                           (int16_t)one_rx(1, sample - 1) * LSB);
+#pragma omp section
+#pragma omp parallel for private(sample)
+                    for (sample = 0; sample < this->adc_samples; sample += 2)
+                    {
+                        cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(0, sample + 1) * LSB,
+                                                               (int16_t)one_rx(0, sample) * LSB);
+                    }
+#pragma omp section
+#pragma omp parallel for private(sample)
+                    for (sample = 1; sample < this->adc_samples; sample += 2)
+                    {
+                        cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(1, sample) * LSB,
+                                                               (int16_t)one_rx(1, sample - 1) * LSB);
+                    }
                 }
             }
             raw_temp.block(0, chirp * this->rx_num * this->tx_num,
@@ -347,9 +351,8 @@ namespace mmfusion
         }
 
         /* re-arrange by Rx */
-#pragma omp parallel
-#pragma omp for
-        for (size_t rx = 0; rx < this->rx_num * this->tx_num; ++rx)
+#pragma omp parallel for private(rx)
+        for (rx = 0; rx < this->rx_num * this->tx_num; ++rx)
         {
             Eigen::MatrixXcd rx_n = Eigen::MatrixXcd::Map(raw_temp.data() + (rx * raw_temp.rows()),
                                                           raw_temp.rows(),
@@ -530,24 +533,21 @@ namespace mmfusion
 
     bool DCA1000::_frame_check(const DataFrame &frame)
     {
-        size_t seq_diff = 0;
-        size_t byte_count_diff = 0;
+        // size_t seq_diff = 0;
+        // size_t byte_count_diff = 0;
 
-        size_t total_packets = frame.data.size();
+        // size_t total_packets = frame.data.size();
         size_t total_len = 0;
 
-        for (auto packet : frame.data)
+        int i;
+// #pragma omp parallel for
+        for (i = 0; i < frame.data.size(); ++i)
         {
-            total_len += 2 * packet.raw_adc.size();
+            total_len += 2 * frame.data[i].raw_adc.size();
         }
 
-        seq_diff = frame.data.back().seq - frame.data.front().seq + 1;
-        byte_count_diff = frame.data.back().byte_cnt - frame.data.front().byte_cnt;
-
-        if (total_len != this->_frame_len)
-        {
-            std::cout << "Length mismatched: " << total_len << " should be " << this->_frame_len << std::endl;
-        }
+        // seq_diff = frame.data.back().seq - frame.data.front().seq + 1;
+        // byte_count_diff = frame.data.back().byte_cnt - frame.data.front().byte_cnt;
 
         return (total_len == this->_frame_len);
     }

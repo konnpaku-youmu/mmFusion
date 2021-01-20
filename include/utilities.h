@@ -1,5 +1,5 @@
-#ifndef UTIL_H
-#define UTIL_H
+#ifndef UTILITIES_H
+#define UTILITIES_H
 
 #include <iostream>
 #include <fstream>
@@ -8,14 +8,20 @@
 #include <signal.h>
 #include <pthread.h>
 #include <mutex>
+#include <omp.h>
+#include <complex>
 
 #include <boost/asio.hpp>
 #include <boost/array.hpp>
 #include <boost/bind/bind.hpp>
 
 #include <eigen3/Eigen/Eigen>
-#include <complex>
 #include <opencv4/opencv2/opencv.hpp>
+
+#ifdef WITH_CUDA
+#include <cuda_runtime.h>
+#include <cuda.h>
+#endif
 
 using namespace boost::asio::ip;
 
@@ -60,6 +66,7 @@ namespace mmfusion
         std::string cmd_port;
         int baud_rate;
         int tx_num = 0, rx_num = 0;
+        int adc_samples = 0;
         std::vector<std::string> cmd_list;
 
         // DCA1000 related
@@ -125,7 +132,12 @@ namespace mmfusion
     void getNormMat(Eigen::MatrixXcd &, Eigen::MatrixXd &);
 
     Eigen::VectorXd cfarConv(Eigen::VectorXd &, int window_size = 9,
-                              int stride = 1, double threshold = 3.0);
+                             int stride = 1, double threshold = 3.0);
+
+    void blur2D(Eigen::MatrixXd &, Eigen::MatrixXd &, int radius = 7);
+
+    void Conv2D(Eigen::MatrixXd &, Eigen::MatrixXd &, Eigen::MatrixXd &);
+
 } // namespace mmfusion
 
 #endif

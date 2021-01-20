@@ -3,7 +3,7 @@
 
 #include <QMainWindow>
 
-#include "../../src/ui/ui_mainwindow.h"
+#include "ui_mainwindow.h"
 #include "mmWave.h"
 #include "signalProc.h"
 
@@ -49,6 +49,10 @@ private:
     mmfusion::Radar *_radar;
 
     QVector<double> qv_fft_avg;
+
+    QCPColorMap *rvMap;
+
+    QCPColorScale *rvScale;
 
     QCPColorMap *colorMap;
 
