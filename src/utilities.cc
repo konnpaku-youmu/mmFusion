@@ -158,6 +158,8 @@ namespace mmfusion
     {
         float max = -1;
         int idx = -1;
+#pragma omp parallel
+#pragma omp for
         for (size_t col = 0; col < list.cols; ++col)
         {
             float curr_val = list.at<double>(col);
@@ -250,11 +252,11 @@ namespace mmfusion
     {
         dst = Eigen::MatrixXd::Zero(src.rows(), src.cols());
         size_t row;
-#pragma omp parallel
-#pragma omp for
+#pragma omp parallel for private(row)
         for (row = 0; row < src.rows(); ++row)
         {
             size_t col;
+#pragma omp parallel for private(col)
             for (col = 0; col < src.cols(); ++col)
             {
                 dst(row, col) = sqrt(src(row, col).real() * src(row, col).real() +
@@ -279,13 +281,46 @@ namespace mmfusion
         }
         kernel(window_size / 2) = 1;
 
-#pragma omp parallel
+        int i;
+#pragma omp parallel num_threads(16)
 #pragma omp for
-        for (int i = window_size / 2; i < src.rows() - (window_size / 2); i += stride)
+        for (i = window_size / 2; i < src.rows() - (window_size / 2); i += stride)
         {
             res(i) = src.segment(i - (window_size / 2), window_size).dot(kernel);
         }
 
         return res;
+    }
+
+    void blur2D(Eigen::MatrixXd &src, Eigen::MatrixXd &dst, int radius)
+    {
+        dst = Eigen::MatrixXd::Zero(src.rows(), src.cols());
+        assert(radius > 2 && radius % 2 == 1);
+        Eigen::MatrixXd conv_kernel = Eigen::MatrixXd::Ones(radius, radius);
+        conv_kernel /= radius * radius;
+
+        Eigen::MatrixXd src_no_border = src.block(1, 1, src.rows() - 2, src.cols() - 2);
+        Eigen::MatrixXd dst_no_border = Eigen::MatrixXd::Zero(src_no_border.rows(), src_no_border.cols());
+        mmfusion::Conv2D(src_no_border, dst_no_border, conv_kernel);
+        dst.block(1, 1, src.rows() - 2, src.cols() - 2) = dst_no_border;
+        return;
+    }
+
+    void Conv2D(Eigen::MatrixXd &src, Eigen::MatrixXd &dst, Eigen::MatrixXd &kernel)
+    {
+        dst = Eigen::MatrixXd::Zero(src.rows(), src.cols());
+        int row, col;
+#pragma omp parallel for private(row, col)
+        for (row = kernel.rows() / 2; row < src.rows() - (kernel.rows() / 2); ++row)
+        {
+            for (col = kernel.cols() / 2; col < src.cols() - (kernel.cols() / 2); ++col)
+            {
+                dst(row, col) = (src.block(row - kernel.rows() / 2, col - kernel.cols() / 2,
+                                           kernel.rows(), kernel.cols())
+                                     .array() *
+                                 kernel.array())
+                                    .sum();
+            }
+        }
     }
 } // namespace mmfusion
