@@ -299,10 +299,10 @@ namespace mmfusion
         Eigen::MatrixXd conv_kernel = Eigen::MatrixXd::Ones(radius, radius);
         conv_kernel /= radius * radius;
 
-        Eigen::MatrixXd src_no_border = src.block(1, 1, src.rows() - 2, src.cols() - 2);
-        Eigen::MatrixXd dst_no_border = Eigen::MatrixXd::Zero(src_no_border.rows(), src_no_border.cols());
-        mmfusion::Conv2D(src_no_border, dst_no_border, conv_kernel);
-        dst.block(1, 1, src.rows() - 2, src.cols() - 2) = dst_no_border;
+        // Eigen::MatrixXd src_no_border = src.block(1, 1, src.rows() - 2, src.cols() - 2);
+        // Eigen::MatrixXd dst_no_border = Eigen::MatrixXd::Zero(src_no_border.rows(), src_no_border.cols());
+        mmfusion::Conv2D(src, dst, conv_kernel);
+        // dst.block(1, 1, src.rows() - 2, src.cols() - 2) = dst_no_border;
         return;
     }
 
@@ -316,10 +316,7 @@ namespace mmfusion
             for (col = kernel.cols() / 2; col < src.cols() - (kernel.cols() / 2); ++col)
             {
                 dst(row, col) = (src.block(row - kernel.rows() / 2, col - kernel.cols() / 2,
-                                           kernel.rows(), kernel.cols())
-                                     .array() *
-                                 kernel.array())
-                                    .sum();
+                                           kernel.rows(), kernel.cols()).array() * kernel.array()).sum();
             }
         }
     }

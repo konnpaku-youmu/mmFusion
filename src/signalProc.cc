@@ -8,6 +8,7 @@ namespace mmfusion
 
         this->virtualAnt = this->_cfg->tx_num * this->_cfg->rx_num;
         this->adc_samples = this->_cfg->adc_samples;
+        this->loops = this->_cfg->loops;
         this->_output.rw_lock = mmfusion::RWStatus::UNAVAILABLE;
 
 #ifdef WITH_CUDA
@@ -28,11 +29,14 @@ namespace mmfusion
         }
 
         // Initializing cuFFT plan
-        this->_plan = new cufftHandle;
-        if (cufftPlan1d(this->_plan, this->adc_samples, CUFFT_C2C, 1) != CUFFT_SUCCESS)
+        this->_plan_1d = new cufftHandle;
+        this->_plan_2d = new cufftHandle;
+        if (cufftPlan1d(this->_plan_1d, this->adc_samples, CUFFT_C2C, this->loops * this->virtualAnt) != CUFFT_SUCCESS ||
+            cufftPlan1d(this->_plan_2d, this->loops, CUFFT_C2C, this->adc_samples * this->virtualAnt) != CUFFT_SUCCESS)
         {
             std::cout << "CUFFT error: Plan creation failed..." << std::endl;
         }
+
 #endif
         return;
     }
@@ -50,7 +54,8 @@ namespace mmfusion
             this->_process();
         }
 #ifdef WITH_CUDA
-        cufftDestroy(*this->_plan);
+        cufftDestroy(*this->_plan_1d);
+        cufftDestroy(*this->_plan_2d);
 #endif
         return;
     }
@@ -66,8 +71,8 @@ namespace mmfusion
         this->_output.rw_lock = mmfusion::RWStatus::WRITING;
         if (this->_capture_board->getRawData(this->_output.raw))
         {
-            this->loops = this->_output.raw.cols() / virtualAnt;
-            this->adc_samples = this->_output.raw.rows();
+            assert(this->loops == this->_output.raw.cols() / virtualAnt);
+            assert(this->adc_samples == this->_output.raw.rows());
 
             // compute 1D-FFT
             this->_output.fft_1d = Eigen::MatrixXcd::Zero(this->_output.raw.rows(),
@@ -89,7 +94,17 @@ namespace mmfusion
 
     void SignalProcessor::_compute_1d_fft()
     {
-#ifndef WITH_CUDA
+#ifdef WITH_CUDA
+        cufftComplex *data;
+        size_t fftTotalSize = sizeof(cufftComplex) * this->loops * this->virtualAnt * this->adc_samples;
+        float2 *sig = new float2[this->loops * this->virtualAnt * this->adc_samples];
+
+        cudaMalloc((void **)&data, fftTotalSize);
+        if (cudaGetLastError() != cudaSuccess)
+        {
+            std::cerr << "CUDA Error: malloc..." << std::endl;
+        }
+#else
 #pragma omp parallel
 #pragma omp for
 #endif
@@ -101,48 +116,17 @@ namespace mmfusion
 #endif
             for (int chirp = 0; chirp < this->loops; ++chirp)
             {
-                Eigen::VectorXcd fft_result = Eigen::VectorXcd::Zero(this->adc_samples);
 #ifdef WITH_CUDA
-                cufftComplex *data;
-                cudaMalloc((void **)&data, sizeof(cufftComplex) * this->adc_samples);
-                if (cudaGetLastError() != cudaSuccess)
-                {
-                    std::cout << "CUDA Error: Failed to allocate memory..." << std::endl;
-                }
-
-                float2 *sig = new float2[this->adc_samples];
-
                 for (int sample = 0; sample < this->adc_samples; ++sample)
                 {
-                    sig[sample].x = (float)this->_output.raw(sample, rx * loops + chirp).real();
-                    sig[sample].y = (float)this->_output.raw(sample, rx * loops + chirp).imag();
+                    /* flatten ADC matrix */
+                    int idx = (rx * this->loops * this->adc_samples) +
+                              (chirp * this->adc_samples) + sample;
+                    sig[idx].x = (float)this->_output.raw(sample, rx * loops + chirp).real();
+                    sig[idx].y = (float)this->_output.raw(sample, rx * loops + chirp).imag();
                 }
-
-                cudaMemcpy(data, sig, sizeof(float2) * this->adc_samples, cudaMemcpyHostToDevice);
-
-                // run FFT with CUDA
-                if (cufftExecC2C(*this->_plan, data, data, CUFFT_FORWARD) != CUFFT_SUCCESS)
-                {
-                    std::cerr << "Execute C2C FFT failed..." << std::endl;
-                    goto fail_1d;
-                }
-                if (cudaDeviceSynchronize() != cudaSuccess)
-                {
-                    std::cerr << "CUDA Error: Failed to synchronize..." << std::endl;
-                }
-
-                cudaMemcpy(sig, data, sizeof(float2) * this->adc_samples, cudaMemcpyDeviceToHost);
-
-                for (int sample = 0; sample < this->adc_samples; ++sample)
-                {
-                    Eigen::dcomplex cmplx((double)sig[sample].x,
-                                          (double)sig[sample].y);
-                    fft_result(sample) = cmplx;
-                }
-
-                cudaFree(data);
-                delete sig;
 #else
+                Eigen::VectorXcd fft_result = Eigen::VectorXcd::Zero(this->adc_samples);
                 double fft_container[2 * this->adc_samples];
 
                 for (int sample = 0; sample < this->adc_samples; ++sample)
@@ -159,17 +143,60 @@ namespace mmfusion
                     Eigen::dcomplex cmplx(fft_container[i], fft_container[i + 1]);
                     fft_result(i / 2) = cmplx;
                 }
-#endif
                 this->_output.fft_1d.col(rx * loops + chirp) = fft_result;
+#endif
             }
         }
-    fail_1d:
+#ifdef WITH_CUDA
+        cudaMemcpy(data, sig, fftTotalSize, cudaMemcpyHostToDevice);
+
+        // run FFT with CUDA
+        if (cufftExecC2C(*this->_plan_1d, data, data, CUFFT_FORWARD) != CUFFT_SUCCESS)
+        {
+            std::cerr << "Execute C2C FFT failed..." << std::endl;
+        }
+        if (cudaDeviceSynchronize() != cudaSuccess)
+        {
+            std::cerr << "CUDA Error: Failed to synchronize..." << std::endl;
+        }
+
+        cudaMemcpy(sig, data, fftTotalSize, cudaMemcpyDeviceToHost);
+
+        for (int rx = 0; rx < this->virtualAnt; ++rx)
+        {
+            for (int chirp = 0; chirp < this->loops; ++chirp)
+            {
+                for (int sample = 0; sample < this->adc_samples; ++sample)
+                {
+                    /* reconstruct 1D-FFT matrix */
+                    int idx = (rx * this->adc_samples * this->loops) +
+                              (chirp * this->adc_samples) + sample;
+                    Eigen::dcomplex cmplx((double)sig[idx].x, (double)sig[idx].y);
+                    this->_output.fft_1d(sample, rx * loops + chirp) = cmplx;
+                }
+            }
+        }
+
+        cudaFree(data);
+        delete sig;
+#endif
         return;
     }
 
     void SignalProcessor::_compute_2d_fft()
     {
-#ifndef WITH_CUDA
+#ifdef WITH_CUDA
+        cufftComplex *data;
+        size_t fftTotalSize = sizeof(cufftComplex) * this->loops * this->adc_samples * this->virtualAnt;
+
+        float2 *sig = new float2[this->loops * this->adc_samples * this->virtualAnt];
+
+        cudaMalloc((void **)&data, fftTotalSize);
+        if (cudaGetLastError() != cudaSuccess)
+        {
+            std::cerr << "CUDA Error: malloc failed" << std::endl;
+        }
+#else
 #pragma omp parallel
 #pragma omp for
 #endif
@@ -183,50 +210,20 @@ namespace mmfusion
             {
                 Eigen::MatrixXcd rx_n_range_k = this->_output.fft_1d.block(sample, rx * this->loops,
                                                                            1, this->loops);
-                Eigen::dcomplex dc_sum = rx_n_range_k.mean();
+                Eigen::dcomplex dc_avg = rx_n_range_k.mean();
+
+                for (int chirp = 0; chirp < this->loops; ++chirp)
+                {
+                    /* zero-mean */
+                    this->_output.fft_1d(sample, rx * loops + chirp) -= dc_avg;
 #ifdef WITH_CUDA
-                cufftComplex *data;
-                cudaMalloc((void **)&data, sizeof(cufftComplex) * this->loops);
-                if (cudaGetLastError() != cudaSuccess)
-                {
-                    std::cout << "CUDA Error: Failed to allocate memory..." << std::endl;
+                    int idx = (rx * this->loops * this->adc_samples) +
+                              (sample * this->loops) + chirp;
+                    sig[idx].x = (float)this->_output.fft_1d(sample, rx * loops + chirp).real();
+                    sig[idx].y = (float)this->_output.fft_1d(sample, rx * loops + chirp).imag();
+#endif
                 }
-
-                float2 *sig = new float2[this->loops];
-
-                for (int chirp = 0; chirp < this->loops; ++chirp)
-                {
-                    Eigen::dcomplex cmplx = this->_output.fft_1d(sample, rx * loops + chirp) - dc_sum;
-                    
-                    sig[chirp].x = (float)cmplx.real();
-                    sig[chirp].y = (float)cmplx.imag();
-                }
-
-                cudaMemcpy(data, sig, sizeof(float2) * this->loops, cudaMemcpyHostToDevice);
-
-                // run FFT with CUDA
-                if (cufftExecC2C(*this->_plan, data, data, CUFFT_FORWARD) != CUFFT_SUCCESS)
-                {
-                    std::cerr << "Execute C2C FFT failed..." << std::endl;
-                    goto fail_2d;
-                }
-                if (cudaDeviceSynchronize() != cudaSuccess)
-                {
-                    std::cerr << "CUDA Error: Failed to synchronize..." << std::endl;
-                }
-
-                cudaMemcpy(sig, data, sizeof(float2) * this->loops, cudaMemcpyDeviceToHost);
-
-                for (int chirp = 0; chirp < this->loops; ++chirp)
-                {
-                    Eigen::dcomplex cmplx((double)sig[chirp].x,
-                                          (double)sig[chirp].y);
-                    this->_output.fft_2d(sample, rx * loops + chirp) = cmplx;
-                }
-
-                cudaFree(data);
-                delete sig;
-#else
+#ifndef WITH_CUDA
                 double fft_container[2 * this->loops];
 
                 // compute DC component
@@ -235,7 +232,7 @@ namespace mmfusion
 #pragma omp for
                 for (int chirp = 0; chirp < this->loops; ++chirp)
                 {
-                    rx_n_range_k(0, chirp) -= dc_sum;
+                    rx_n_range_k(0, chirp) -= dc_avg;
                     fft_container[2 * chirp] = rx_n_range_k(0, chirp).real();
                     fft_container[2 * chirp + 1] = rx_n_range_k(0, chirp).imag();
                 }
@@ -252,7 +249,37 @@ namespace mmfusion
 #endif
             }
         }
-    fail_2d:
+#ifdef WITH_CUDA
+        cudaMemcpy(data, sig, fftTotalSize, cudaMemcpyHostToDevice);
+
+        // run FFT with CUDA
+        if (cufftExecC2C(*this->_plan_2d, data, data, CUFFT_FORWARD) != CUFFT_SUCCESS)
+        {
+            std::cerr << "Execute C2C FFT failed..." << std::endl;
+        }
+        if (cudaDeviceSynchronize() != cudaSuccess)
+        {
+            std::cerr << "CUDA Error: Failed to synchronize..." << std::endl;
+        }
+
+        cudaMemcpy(sig, data, fftTotalSize, cudaMemcpyDeviceToHost);
+
+        for (int rx = 0; rx < this->virtualAnt; ++rx)
+        {
+            for (int sample = 0; sample < this->adc_samples; ++sample)
+            {
+                for (int chirp = 0; chirp < this->loops; ++chirp)
+                {
+                    int idx = (rx * this->loops * this->adc_samples) + (sample * this->loops) + chirp;
+                    Eigen::dcomplex cmplx(sig[idx].x, sig[idx].y);
+                    this->_output.fft_2d(sample, rx * loops + chirp) = cmplx;
+                }
+            }
+        }
+
+        cudaFree(data);
+        delete sig;
+#endif
         return;
     }
 
