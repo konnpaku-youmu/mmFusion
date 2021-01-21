@@ -63,7 +63,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // add FFT plotter
     ui->freqDomain->addGraph();
-    ui->freqDomain->yAxis->setRange(-1, 4);
+    ui->freqDomain->yAxis->setRange(-1, 2);
     ui->freqDomain->xAxis->setLabel("Range(m)");
     ui->freqDomain->yAxis->setLabel("Amplitude");
     ui->freqDomain->xAxis2->setVisible(true);
@@ -220,27 +220,26 @@ void MainWindow::refresh_plot()
 
         // plot 2dfft
         rvMap->data()->setSize(fft_2d_n.rows(), fft_2d_n.cols());
-        rvMap->data()->setRange(QCPRange(0, fft_2d_n.rows() * 0.095), QCPRange(-1.28, 1.28));
+        rvMap->data()->setRange(QCPRange(0, fft_2d_n.rows()), QCPRange(-1.28, 1.28));
 
         Eigen::MatrixXd fft_2d_norm, fft_2d_filter;
         mmfusion::getNormMat(fft_2d_n, fft_2d_norm);
-        // fft_2d_norm.col(0) = fft_2d_norm.col(127) = Eigen::VectorXd::Zero(fft_2d_norm.rows());
         mmfusion::blur2D(fft_2d_norm, fft_2d_filter);
 
         int max_row;
         double _max_fft = fft_2d_filter.maxCoeff();
         double _fft_mean = fft_2d_filter.mean();
         double _x, _y;
-        for (int xIndex = 0; xIndex < fft_2d_filter.rows(); ++xIndex)
+        for (int xIndex = 0; xIndex < fft_2d_norm.rows(); ++xIndex)
         {
-            for (int yIndex = loops / 2; yIndex < (3 * loops / 2); ++yIndex)
+            for (int yIndex = (loops / 2); yIndex < (3 * loops / 2); ++yIndex)
             {
                 rvMap->data()->cellToCoord(xIndex, yIndex - (loops / 2), &_x, &_y);
                 if (fft_2d_filter(xIndex, yIndex % loops) == _max_fft)
                 {
                     max_row = xIndex;
                 }
-                rvMap->data()->setCell(xIndex, yIndex - (loops / 2), log(fft_2d_filter(xIndex, yIndex % loops)));
+                rvMap->data()->setCell(xIndex, yIndex - (loops / 2), (fft_2d_norm(xIndex, yIndex % loops)));
             }
         }
 
@@ -249,7 +248,7 @@ void MainWindow::refresh_plot()
         {
             if (row == max_row)
             {
-                qv_cfar.append(2.5);
+                qv_cfar.append(0.5);
             }
             else
             {
@@ -261,6 +260,7 @@ void MainWindow::refresh_plot()
         ui->freqDomain->graph(0)->setData(qv_x_fft, qv_fft);
         ui->freqDomain->graph(1)->setData(qv_x_fft, qv_cfar);
         ui->freqDomain->xAxis->rescale();
+        // ui->freqDomain->yAxis->rescale();
         ui->freqDomain->replot();
         ui->freqDomain->update();
 
@@ -270,13 +270,14 @@ void MainWindow::refresh_plot()
 
         ui->rv_plot->rescaleAxes();
         ui->rv_plot->replot();
+        ui->rv_plot->update();
 
         // plot spectrogram
         colorMap->data()->setSize(128, loops);
         colorMap->data()->setRange(QCPRange(0, 128), QCPRange(-1.01, 1.01));
 
-        Eigen::VectorXd doppler = Eigen::VectorXd::Zero(fft_2d_filter.cols());
-        for (int row = max_row - 5; row < max_row + 5; ++row)
+        Eigen::VectorXd doppler = Eigen::VectorXd::Zero(fft_2d_norm.cols());
+        for (int row = max_row - 2; row < max_row + 2; ++row)
         {
             doppler += fft_2d_norm.row(row);
         }
@@ -289,12 +290,10 @@ void MainWindow::refresh_plot()
         }
 
         double doppler_min = doppler_n.minCoeff();
-        double doppler_diff = doppler_n.maxCoeff() - doppler_n.minCoeff();
 
         for (size_t i = 0; i < loops; ++i)
         {
             doppler_n(i) -= doppler_min;
-            doppler_n(i) *= 2 / doppler_diff;
         }
 
         double x, y, z;
@@ -302,26 +301,20 @@ void MainWindow::refresh_plot()
         for (int yIndex = 0; yIndex < loops; ++yIndex)
         {
             colorMap->data()->cellToCoord(0, yIndex, &x, &y);
-            z = 6 * log(doppler_n(yIndex) + 1);
-            colorMap->data()->setCell(this->_frame_cnt, yIndex, z);
+            z = log(doppler_n(yIndex));
+            colorMap->data()->setCell(this->_frame_cnt % 128, yIndex, z);
         }
 
         this->_frame_cnt++;
 
-        if (this->_frame_cnt > 127)
-        {
-            this->_frame_cnt = 0;
-        }
-
         colorScale->setType(QCPAxis::atRight);
         colorMap->setColorScale(colorScale);
         colorMap->setGradient(QCPColorGradient::gpJet);
-        // colorMap->setDataRange(QCPRange(0, 10));
-        colorMap->rescaleDataRange();
-        // colorMap->setInterpolate(false);
+        colorMap->setDataRange(QCPRange(0, 10));
 
         ui->spectro->rescaleAxes();
         ui->spectro->replot();
+        ui->spectro->update();
     }
 
     return;

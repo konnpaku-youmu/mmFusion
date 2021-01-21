@@ -242,6 +242,7 @@ namespace mmfusion
                 tokens = split(cmd, " ");
                 chirps_per_loop = std::stoi(tokens[2]) - std::stoi(tokens[1]) + 1;
                 loops = std::stoi(tokens[3]);
+                this->_cfg->loops = this->loops;
                 chirps_per_frame = loops * chirps_per_loop;
             }
         }

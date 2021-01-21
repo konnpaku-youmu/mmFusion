@@ -31,7 +31,9 @@ namespace mmfusion
         int virtualAnt = 0, loops = 0, adc_samples = 0;
 
 #ifdef WITH_CUDA
-        cufftHandle *_plan;
+        cufftHandle *_plan_1d;
+
+        cufftHandle *_plan_2d;
 #endif
 
         ProcOutput _output;

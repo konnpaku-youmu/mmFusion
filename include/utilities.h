@@ -1,6 +1,8 @@
 #ifndef UTILITIES_H
 #define UTILITIES_H
 
+// #define WITH_CUDA
+
 #include <iostream>
 #include <fstream>
 #include <memory>
@@ -67,6 +69,7 @@ namespace mmfusion
         int baud_rate;
         int tx_num = 0, rx_num = 0;
         int adc_samples = 0;
+        int loops = 0;
         std::vector<std::string> cmd_list;
 
         // DCA1000 related
@@ -134,7 +137,7 @@ namespace mmfusion
     Eigen::VectorXd cfarConv(Eigen::VectorXd &, int window_size = 9,
                              int stride = 1, double threshold = 3.0);
 
-    void blur2D(Eigen::MatrixXd &, Eigen::MatrixXd &, int radius = 7);
+    void blur2D(Eigen::MatrixXd &, Eigen::MatrixXd &, int radius = 5);
 
     void Conv2D(Eigen::MatrixXd &, Eigen::MatrixXd &, Eigen::MatrixXd &);
 
