@@ -298,11 +298,9 @@ namespace mmfusion
         assert(radius > 2 && radius % 2 == 1);
         Eigen::MatrixXd conv_kernel = Eigen::MatrixXd::Ones(radius, radius);
         conv_kernel /= radius * radius;
-
-        // Eigen::MatrixXd src_no_border = src.block(1, 1, src.rows() - 2, src.cols() - 2);
-        // Eigen::MatrixXd dst_no_border = Eigen::MatrixXd::Zero(src_no_border.rows(), src_no_border.cols());
+        
         mmfusion::Conv2D(src, dst, conv_kernel);
-        // dst.block(1, 1, src.rows() - 2, src.cols() - 2) = dst_no_border;
+        
         return;
     }
 

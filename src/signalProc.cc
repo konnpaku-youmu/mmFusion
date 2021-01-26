@@ -66,6 +66,10 @@ namespace mmfusion
         return;
     }
 
+    /**
+     * @brief A method for default signal process with 2D-FFT and CA-CFAR
+     * 
+     */
     void SignalProcessor::_process()
     {
         this->_output.rw_lock = mmfusion::RWStatus::WRITING;

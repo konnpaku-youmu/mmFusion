@@ -239,7 +239,7 @@ void MainWindow::refresh_plot()
                 {
                     max_row = xIndex;
                 }
-                rvMap->data()->setCell(xIndex, yIndex - (loops / 2), (fft_2d_norm(xIndex, yIndex % loops)));
+                rvMap->data()->setCell(xIndex, yIndex - (loops / 2), (fft_2d_filter(xIndex, yIndex % loops)));
             }
         }
 
@@ -301,7 +301,7 @@ void MainWindow::refresh_plot()
         for (int yIndex = 0; yIndex < loops; ++yIndex)
         {
             colorMap->data()->cellToCoord(0, yIndex, &x, &y);
-            z = log(doppler_n(yIndex));
+            z = 1.8 * log(doppler_n(yIndex));
             colorMap->data()->setCell(this->_frame_cnt % 128, yIndex, z);
         }
 
