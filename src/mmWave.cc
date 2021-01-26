@@ -44,6 +44,12 @@ namespace mmfusion
         delete this->_cmd_port_ptr;
     }
 
+    /**
+     * @brief A method to display mmWave Radar related information, including radar model,
+     *        serial port for sending commands and its baud rate. This method will return
+     *        after some keyboard input from user
+     * 
+     */
     void Radar::_display_properties()
     {
         std::cout << "\033[0;92m";
@@ -62,10 +68,13 @@ namespace mmfusion
 
         return;
     }
-
+    
+    /**
+     * @brief send full profile configuration to radar via serial port
+     * 
+     */
     void Radar::configure()
     {
-        /* send full profile configuration via serial port for initialization */
         for (auto cmd : this->_cfg->cmd_list)
         {
             // wait before testing sensorStart command to radar
@@ -155,6 +164,12 @@ namespace mmfusion
         return ec;
     }
 
+    /**
+     * @brief A method to read serial data in a synchronous manner
+     * 
+     * @param message container to hold the serial data as characters
+     * @return boost::system::error_code 
+     */
     boost::system::error_code Radar::_read_from_serial(std::string &message)
     {
         message = "";
@@ -179,6 +194,12 @@ namespace mmfusion
         return ec;
     }
 
+    /**
+     * @brief Construct a new DCA1000::DCA1000 object
+     * 
+     * @param cfg system configuration object
+     * @param mut mutex lock
+     */
     DCA1000::DCA1000(mmfusion::SystemConf &cfg, pthread_mutex_t &mut)
     {
         this->_cfg = &cfg;
@@ -314,7 +335,7 @@ namespace mmfusion
                                                            this->_raw_data.data_flattened.cols());
 
         /* Old documentation is correct */
-        size_t chirp, rx, sample;
+        int chirp;
 #pragma omp parallel for private(chirp)
         for (chirp = 0; chirp < organized.cols(); ++chirp)
         {
@@ -324,11 +345,13 @@ namespace mmfusion
 
             Eigen::MatrixXcd cplx_raw(this->rx_num * this->tx_num,
                                       this->adc_samples);
+            int rx;
 #pragma omp parallel for private(rx)
             for (rx = 0; rx < this->rx_num * this->tx_num; ++rx)
             {
                 Eigen::Map<Eigen::MatrixXi> one_rx(one_chirp.col(rx).data(),
                                                    2, this->adc_samples);
+                int sample;
 #pragma omp parallel sections
                 {
 #pragma omp section
@@ -352,6 +375,7 @@ namespace mmfusion
         }
 
         /* re-arrange by Rx */
+        int rx;
 #pragma omp parallel for private(rx)
         for (rx = 0; rx < this->rx_num * this->tx_num; ++rx)
         {
@@ -365,6 +389,7 @@ namespace mmfusion
         }
 
         this->_raw_data.rw_lock = mmfusion::RWStatus::AVAILABLE;
+
         return;
     }
 
@@ -421,7 +446,6 @@ namespace mmfusion
 
     void DCA1000::_handle_receive(const boost::system::error_code ec, size_t bytes_transferred)
     {
-
         /* Parsing Raw data */
         RawDCAPacket packet;
         char *phead = this->_buf.begin();
@@ -495,7 +519,6 @@ namespace mmfusion
                 }
                 else
                 {
-                    // bug occurs when loop is set to 64
                     std::cout << "\nFrame: " << this->_frame_list.back().id << " is probably malformed" << std::endl;
                     this->_frame_list.pop_back();
                 }
@@ -514,6 +537,7 @@ namespace mmfusion
         }
 
         this->_status = mmfusion::deviceStatus::RUNNING;
+
         // trigger receive thread again
         this->_start_receive();
 
@@ -522,33 +546,24 @@ namespace mmfusion
 
     void DCA1000::_make_packet(char **begin, char *end, mmfusion::RawDCAPacket &packet)
     {
-        while (*begin != end)
-        {
-            uint16_t raw_data;
-            std::memcpy(&raw_data, *begin, 2);
-            packet.raw_adc.push_back(raw_data);
-            *begin += 2;
-        }
+        size_t byte_len = end - *begin;
+        size_t vector_len = byte_len / sizeof(uint16_t);
+        packet.raw_adc = std::vector<uint16_t>(vector_len);
+        uint16_t *raw_data = packet.raw_adc.data();
+        std::memcpy(raw_data, *begin, byte_len);
+        *begin += byte_len;
         return;
     }
 
     bool DCA1000::_frame_check(const DataFrame &frame)
     {
-        // size_t seq_diff = 0;
-        // size_t byte_count_diff = 0;
-
-        // size_t total_packets = frame.data.size();
         size_t total_len = 0;
 
         int i;
-// #pragma omp parallel for
         for (i = 0; i < frame.data.size(); ++i)
         {
-            total_len += 2 * frame.data[i].raw_adc.size();
+            total_len += (frame.data[i].raw_adc.size() << 1);
         }
-
-        // seq_diff = frame.data.back().seq - frame.data.front().seq + 1;
-        // byte_count_diff = frame.data.back().byte_cnt - frame.data.front().byte_cnt;
 
         return (total_len == this->_frame_len);
     }
