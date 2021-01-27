@@ -32,6 +32,7 @@ int main(int argc, char **argv)
     /* Start GUI */
     mmfusion::DataPlotWrapper plt(argc, argv, cfg, radar, sp);
     plt.show();
+    // for(;;);
 
     sp.stopThread();
     data_cap.stopThread();

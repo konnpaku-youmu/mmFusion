@@ -6,6 +6,7 @@
 
 #ifdef WITH_CUDA
 #include <cufft.h>
+#include <cublas.h>
 #else
 #include <gsl/gsl_fft_complex.h>
 #endif
@@ -18,6 +19,8 @@ namespace mmfusion
         Eigen::MatrixXcd fft_1d;
         Eigen::MatrixXd cfar_1d;
         Eigen::MatrixXcd fft_2d;
+        Eigen::MatrixXcd fft_3d;
+        Eigen::MatrixXd aoa_est;
         mmfusion::RWStatus rw_lock;
     } typedef ProcOutput;
 
@@ -34,17 +37,29 @@ namespace mmfusion
         cufftHandle *_plan_1d;
 
         cufftHandle *_plan_2d;
+
+        cufftHandle *_plan_3d;
 #endif
 
         ProcOutput _output;
 
         void _process();
+#ifdef WITH_CUDA
+        void _compute_1d_fft_cuda();
 
+        void _compute_2d_fft_cuda();
+        
+        void _compute_3d_fft_cuda();
+#else
         void _compute_1d_fft();
 
         void _compute_2d_fft();
 
+        void _compute_3d_fft();
+#endif
         void _cfar(Eigen::MatrixXcd &);
+
+        void _beamforming();
 
     protected:
         void entryPoint();

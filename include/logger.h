@@ -5,6 +5,15 @@
 
 namespace mmfusion
 {
-
-}
+    class Logger
+    {
+    private:
+        std::string _log_path;
+    
+    public:
+        Logger(const std::string &);
+        
+        ~Logger();
+    };
+} // namespace mmfusion
 #endif

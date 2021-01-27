@@ -248,7 +248,7 @@ void MainWindow::refresh_plot()
         {
             if (row == max_row)
             {
-                qv_cfar.append(0.5);
+                qv_cfar.append(0.8);
             }
             else
             {
