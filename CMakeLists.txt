@@ -53,7 +53,8 @@ set(PROJECT_SOURCES src/main.cc
                     src/signalProc.cc 
                     src/inference.cc 
                     src/utilities.cc
-                    src/visualize.cc 
+                    src/visualize.cc
+                    src/logger.cc
                     thirdparty/qcustomplot.h
                     thirdparty/qcustomplot.cpp
                     src/ui/mainwindow.cc

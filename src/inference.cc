@@ -35,7 +35,7 @@ namespace mmfusion
         this->cfg = &cfg;
         this->_frame = frame;
         this->_mutex = mutex;
-        this->_cap.open(this->cfg->device);
+        this->_cap.open(this->cfg->cam_path);
 
         return;
     }
@@ -62,9 +62,9 @@ namespace mmfusion
         this->output = _out;
         this->_mutex = mutex;
 
-        this->_cam_2_world << cos(cfg.camera_pitch), 0, sin(cfg.camera_pitch), 0,
+        this->_cam_2_world << cos(cfg.cam_install_pitch), 0, sin(cfg.cam_install_pitch), 0,
             0, 1, 0, 0,
-            -sin(cfg.camera_pitch), 0, cos(cfg.camera_pitch), cfg.camera_height,
+            -sin(cfg.cam_install_pitch), 0, cos(cfg.cam_install_pitch), cfg.cam_install_height,
             0, 0, 0, 1;
 
         this->_net = cv::dnn::readNetFromDarknet(cfg.yolo_cfg, cfg.yolo_weights);
@@ -89,7 +89,7 @@ namespace mmfusion
             }
 
             cv::Rect roi;
-            cv::Mat optimal_k = cv::getOptimalNewCameraMatrix(this->_cfg->camera_mat, this->_cfg->dist_coeffs,
+            cv::Mat optimal_k = cv::getOptimalNewCameraMatrix(this->_cfg->cam_mat, this->_cfg->dist_coeffs,
                                                               this->frame->size(), 0.1, this->frame->size(), &roi, true);
             double f_x, f_y, c_x, c_y;
             f_x = optimal_k.at<double>(0, 0);

@@ -15,7 +15,7 @@ namespace mmfusion
             // instantiate & initialize serial port
             boost::asio::io_service io;
             this->_cmd_port_ptr = new boost::asio::serial_port(io);
-            this->_cmd_port_ptr->open(this->_cfg->cmd_port);
+            this->_cmd_port_ptr->open(this->_cfg->radar_cmd_port);
 
             /* set up options for UART communication */
             boost::asio::serial_port::baud_rate baud_rate(this->_cfg->baud_rate);
@@ -31,7 +31,7 @@ namespace mmfusion
         catch (const std::exception &e)
         {
             std::cerr << "\033[1;31m";
-            std::cerr << "Cannot open serial port: " << this->_cfg->cmd_port << std::endl;
+            std::cerr << "Cannot open serial port: " << this->_cfg->radar_cmd_port << std::endl;
             std::cerr << "\033[0m";
             std::cerr << e.what() << '\n';
         }
@@ -57,7 +57,7 @@ namespace mmfusion
         std::cout << "mmWave Radar properties" << std::endl;
         std::cout << "---" << std::endl;
         std::cout << "Radar model: " << this->_cfg->radar_model << std::endl;
-        std::cout << "Command port: " << this->_cfg->cmd_port << std::endl;
+        std::cout << "Command port: " << this->_cfg->radar_cmd_port << std::endl;
         std::cout << "Baud rate: " << this->_cfg->baud_rate << std::endl;
         std::cout << "---" << std::endl;
 
@@ -75,7 +75,7 @@ namespace mmfusion
      */
     void Radar::configure()
     {
-        for (auto cmd : this->_cfg->cmd_list)
+        for (auto cmd : this->_cfg->radar_cmd_list)
         {
             // wait before testing sensorStart command to radar
             if (std::strcmp(cmd.c_str(), "sensorStart\r\n") == 0)
@@ -215,7 +215,7 @@ namespace mmfusion
         std::cout << "[INFO] UDP socket is created..." << std::endl;
 
         /* write configuration to DCA1000 if using software config (SW2.5 -> SW_CONFIG) */
-        if (std::strcmp(this->_cfg->trigger_mode.c_str(), "Software") == 0)
+        if (this->_cfg->capture_trigger_mode == 1)
         {
             this->configure();
         }
@@ -224,7 +224,7 @@ namespace mmfusion
         std::vector<std::string> tokens;
         int chirps_per_frame;
 
-        for (auto cmd : this->_cfg->cmd_list)
+        for (auto cmd : this->_cfg->radar_cmd_list)
         {
             // get the number of Tx and Rx
             if (cmd.find("channelCfg") != std::string::npos)
@@ -263,7 +263,7 @@ namespace mmfusion
                 tokens = split(cmd, " ");
                 chirps_per_loop = std::stoi(tokens[2]) - std::stoi(tokens[1]) + 1;
                 loops = std::stoi(tokens[3]);
-                this->_cfg->loops = this->loops;
+                this->_cfg->chirp_loops = this->loops;
                 chirps_per_frame = loops * chirps_per_loop;
             }
         }
@@ -380,8 +380,7 @@ namespace mmfusion
         for (rx = 0; rx < this->rx_num * this->tx_num; ++rx)
         {
             Eigen::MatrixXcd rx_n = Eigen::MatrixXcd::Map(raw_temp.data() + (rx * raw_temp.rows()),
-                                                          raw_temp.rows(),
-                                                          raw_temp.cols() / (this->rx_num * tx_num),
+                                                          raw_temp.rows(), raw_temp.cols() / (this->rx_num * tx_num),
                                                           Eigen::OuterStride<>(
                                                               this->rx_num * this->tx_num * raw_temp.rows()));
             this->_raw_data.data_flattened.block(0, rx * rx_n.cols(),

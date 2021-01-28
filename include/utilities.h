@@ -25,6 +25,8 @@
 #include <cuda.h>
 #endif
 
+#define DEG2RAD 3.14159265 / 180
+
 using namespace boost::asio::ip;
 
 namespace mmfusion
@@ -46,40 +48,55 @@ namespace mmfusion
         ACCESSED
     };
 
-    struct SystemConf
+    class SystemConf
     {
-        // camera related
-        std::string device;
-        double camera_height;
-        double camera_pitch;
-        std::string calib_conf_path;
-        cv::Mat camera_mat;
+    public:
+        SystemConf(const std::string &);
+        
+        ~SystemConf();
+
+        /**
+         * @brief To load initializing commands from radar profile as
+         *        a list of strings. This method can be called while 
+         *        the radar is alarmed when paused.
+         *
+         */
+        void loadRadarProfile();
+
+        /* camera related params */
+        std::string cam_path;
+        double cam_install_height;
+        double cam_install_pitch;
+        std::string cam_calib_conf_path;
+        cv::Mat cam_mat;
         cv::Mat dist_coeffs;
 
-        // inference related
+        /* visual inference params */
         std::string yolo_cfg;
         std::string yolo_weights;
-        std::vector<std::string> coco_classes;
-        std::vector<cv::Scalar> class_colors;
-        std::vector<int> valid_classes;
+        std::vector<std::string> coco_classes; // coco class name list
+        std::vector<cv::Scalar> class_colors; // colors for visualizing color classes
+        std::vector<int> valid_classes; // coco class id to display
 
-        // mmWave related
+        /* mmWave radar configuration params */
         std::string radar_model;
-        std::string cmd_port;
+        std::string radar_cmd_port; // serial port path
         int baud_rate;
-        int tx_num = 0, rx_num = 0;
-        int adc_samples = 0;
-        int loops = 0;
-        std::vector<std::string> cmd_list;
+        std::string radar_profile_path;
+        std::vector<std::string> radar_cmd_list; // commands to be sent to radar
 
-        // DCA1000 related
+        /* mmWave radar runtime params */
+        uint8_t tx_num;
+        uint8_t rx_num;
+        uint16_t adc_samples;
+        uint16_t chirp_loops;
+
+        /* data capture board params */
         std::string dca_addr;
-        int dca_data_port;
-        int dca_cmd_port;
-        std::string trigger_mode;
-        std::string dca_cfg_path;
-
-        SystemConf(const std::string &);
+        uint16_t dca_data_port;
+        uint8_t capture_trigger_mode;
+        uint16_t dca_cmd_port; // for software configuration and trigger mode
+        std::string dca_conf_path; // for software configuration and trigger mode
     };
 
     class MultiThreading
