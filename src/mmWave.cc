@@ -280,7 +280,7 @@ namespace mmfusion
 
         // initializing data container
         this->_raw_data.rw_lock = mmfusion::RWStatus::WRITING;
-        this->_raw_data.data_flattened = Eigen::MatrixXcd::Zero(this->adc_samples,
+        this->_raw_data.data_flattened = Eigen::MatrixXcf::Zero(this->adc_samples,
                                                                 this->rx_num * this->chirps_per_loop * this->loops);
         this->_raw_data.rw_lock = mmfusion::RWStatus::UNAVAILABLE;
 
@@ -331,7 +331,7 @@ namespace mmfusion
                                               this->rx_num * this->tx_num * this->adc_samples * 2,
                                               this->loops * this->chirps_per_loop);
 
-        Eigen::MatrixXcd raw_temp = Eigen::MatrixXcd::Zero(this->_raw_data.data_flattened.rows(),
+        Eigen::MatrixXcf raw_temp = Eigen::MatrixXcf::Zero(this->_raw_data.data_flattened.rows(),
                                                            this->_raw_data.data_flattened.cols());
 
         /* Old documentation is correct */
@@ -343,7 +343,7 @@ namespace mmfusion
                                                   this->adc_samples * 2,
                                                   this->rx_num * this->tx_num);
 
-            Eigen::MatrixXcd cplx_raw(this->rx_num * this->tx_num,
+            Eigen::MatrixXcf cplx_raw(this->rx_num * this->tx_num,
                                       this->adc_samples);
             int rx;
 #pragma omp parallel for private(rx)
@@ -358,14 +358,14 @@ namespace mmfusion
 #pragma omp parallel for private(sample)
                     for (sample = 0; sample < this->adc_samples; sample += 2)
                     {
-                        cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(0, sample + 1) * LSB,
+                        cplx_raw(rx, sample) = Eigen::scomplex((int16_t)one_rx(0, sample + 1) * LSB,
                                                                (int16_t)one_rx(0, sample) * LSB);
                     }
 #pragma omp section
 #pragma omp parallel for private(sample)
                     for (sample = 1; sample < this->adc_samples; sample += 2)
                     {
-                        cplx_raw(rx, sample) = Eigen::dcomplex((int16_t)one_rx(1, sample) * LSB,
+                        cplx_raw(rx, sample) = Eigen::scomplex((int16_t)one_rx(1, sample) * LSB,
                                                                (int16_t)one_rx(1, sample - 1) * LSB);
                     }
                 }
@@ -379,7 +379,7 @@ namespace mmfusion
 #pragma omp parallel for private(rx)
         for (rx = 0; rx < this->rx_num * this->tx_num; ++rx)
         {
-            Eigen::MatrixXcd rx_n = Eigen::MatrixXcd::Map(raw_temp.data() + (rx * raw_temp.rows()),
+            Eigen::MatrixXcf rx_n = Eigen::MatrixXcf::Map(raw_temp.data() + (rx * raw_temp.rows()),
                                                           raw_temp.rows(), raw_temp.cols() / (this->rx_num * tx_num),
                                                           Eigen::OuterStride<>(
                                                               this->rx_num * this->tx_num * raw_temp.rows()));
@@ -397,7 +397,7 @@ namespace mmfusion
         return this->_status;
     }
 
-    bool DCA1000::getRawData(Eigen::MatrixXcd &data)
+    bool DCA1000::getRawData(Eigen::MatrixXcf &data)
     {
         bool ret = false;
 
@@ -543,7 +543,7 @@ namespace mmfusion
         return;
     }
 
-    void DCA1000::_make_packet(char **begin, char *end, mmfusion::RawDCAPacket &packet)
+    inline void DCA1000::_make_packet(char **begin, char *end, mmfusion::RawDCAPacket &packet)
     {
         size_t byte_len = end - *begin;
         size_t vector_len = byte_len / sizeof(uint16_t);
@@ -554,7 +554,7 @@ namespace mmfusion
         return;
     }
 
-    bool DCA1000::_frame_check(const DataFrame &frame)
+    inline bool DCA1000::_frame_check(const DataFrame &frame)
     {
         size_t total_len = 0;
 

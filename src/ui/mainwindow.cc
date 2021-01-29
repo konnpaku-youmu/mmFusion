@@ -169,7 +169,7 @@ void MainWindow::refresh_plot()
         return;
     }
 
-    Eigen::MatrixXcd raw_data, fft, _2d_fft;
+    Eigen::MatrixXcf raw_data, fft, _2d_fft;
     Eigen::MatrixXd cfar;
 
     if (this->_proc->getData(raw_data, fft, _2d_fft, cfar))
@@ -177,16 +177,16 @@ void MainWindow::refresh_plot()
         int virtualAnt = this->_cfg->tx_num * this->_cfg->rx_num;
         int loops = raw_data.cols() / virtualAnt;
 
-        Eigen::MatrixXcd rx_n = raw_data.block(0, loops * this->_plot_antenna,
+        Eigen::MatrixXcf rx_n = raw_data.block(0, loops * this->_plot_antenna,
                                                raw_data.rows(), loops);
 
-        Eigen::MatrixXcd fft_n = fft.block(0, loops * this->_plot_antenna,
+        Eigen::MatrixXcf fft_n = fft.block(0, loops * this->_plot_antenna,
                                            fft.rows(), loops);
 
         Eigen::MatrixXd cfar_n = cfar.block(0, loops * this->_plot_antenna,
                                             cfar.rows(), loops);
 
-        Eigen::MatrixXcd fft_2d_n = _2d_fft.block(0, loops * this->_plot_antenna,
+        Eigen::MatrixXcf fft_2d_n = _2d_fft.block(0, loops * this->_plot_antenna,
                                                   _2d_fft.rows(), loops);
 
         ui->spinBox->setRange(0, rx_n.cols() - 1);
@@ -273,8 +273,8 @@ void MainWindow::refresh_plot()
         ui->rv_plot->update();
 
         // plot spectrogram
-        colorMap->data()->setSize(128, loops);
-        colorMap->data()->setRange(QCPRange(0, 128), QCPRange(-1.01, 1.01));
+        colorMap->data()->setSize(256, loops);
+        colorMap->data()->setRange(QCPRange(0, 256), QCPRange(-1.01, 1.01));
 
         Eigen::VectorXd doppler = Eigen::VectorXd::Zero(fft_2d_norm.cols());
         for (int row = max_row - 2; row < max_row + 2; ++row)
@@ -301,8 +301,8 @@ void MainWindow::refresh_plot()
         for (int yIndex = 0; yIndex < loops; ++yIndex)
         {
             colorMap->data()->cellToCoord(0, yIndex, &x, &y);
-            z = 1.8 * log(doppler_n(yIndex));
-            colorMap->data()->setCell(this->_frame_cnt % 128, yIndex, z);
+            z = 3.5 * log10(doppler_n(yIndex));
+            colorMap->data()->setCell(this->_frame_cnt % 256, yIndex, z);
         }
 
         this->_frame_cnt++;

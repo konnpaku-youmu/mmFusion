@@ -268,7 +268,7 @@ namespace mmfusion
         return res;
     }
 
-    void getNormMat(Eigen::MatrixXcd &src, Eigen::MatrixXd &dst)
+    void getNormMat(Eigen::MatrixXcf &src, Eigen::MatrixXd &dst)
     {
         dst = Eigen::MatrixXd::Zero(src.rows(), src.cols());
         size_t row;

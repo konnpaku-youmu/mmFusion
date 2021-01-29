@@ -13,7 +13,7 @@ find_package(OpenMP QUIET)
 
 if(CUDA_FOUND)
   add_compile_definitions(WITH_CUDA)
-  set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -lcudart -l cufft -l cublas)
+  set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -l cudart -l cufft -l cublas)
   find_library(CUDART_LIBRARY x11 cudart cufft 
                ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
   set(PROJECT_LIBS 

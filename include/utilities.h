@@ -149,7 +149,7 @@ namespace mmfusion
 
     std::vector<std::string> split(std::string &, const std::string &);
 
-    void getNormMat(Eigen::MatrixXcd &, Eigen::MatrixXd &);
+    void getNormMat(Eigen::MatrixXcf &, Eigen::MatrixXd &);
 
     Eigen::VectorXd cfarConv(Eigen::VectorXd &, int window_size = 9,
                              int stride = 1, double threshold = 3.0);

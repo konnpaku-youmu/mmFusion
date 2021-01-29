@@ -27,7 +27,7 @@ namespace mmfusion
     struct OrganizedADCData
     {
         mmfusion::RWStatus rw_lock = UNAVAILABLE;
-        Eigen::MatrixXcd data_flattened;
+        Eigen::MatrixXcf data_flattened;
     };
 
     class Radar : public MultiThreading, Device
@@ -79,9 +79,9 @@ namespace mmfusion
             adc_samples = 0, loops = 0,
             chirps_per_loop = 0;
 
-        void _make_packet(char **, char *, mmfusion::RawDCAPacket &);
+        inline void _make_packet(char **, char *, mmfusion::RawDCAPacket &);
 
-        bool _frame_check(const DataFrame &);
+        inline bool _frame_check(const DataFrame &);
 
         void _start_receive();
 
@@ -101,7 +101,7 @@ namespace mmfusion
 
         mmfusion::deviceStatus getStatus();
 
-        bool getRawData(Eigen::MatrixXcd &);
+        bool getRawData(Eigen::MatrixXcf &);
     };
 
 } // namespace mmfusion

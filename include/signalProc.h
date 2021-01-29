@@ -4,6 +4,8 @@
 #include "utilities.h"
 #include "mmWave.h"
 
+// #define WITH_CUDA
+
 #ifdef WITH_CUDA
 #include <cufft.h>
 #include <cublas.h>
@@ -15,11 +17,11 @@ namespace mmfusion
 {
     struct
     {
-        Eigen::MatrixXcd raw;
-        Eigen::MatrixXcd fft_1d;
+        Eigen::MatrixXcf raw;
+        Eigen::MatrixXcf fft_1d;
         Eigen::MatrixXd cfar_1d;
-        Eigen::MatrixXcd fft_2d;
-        Eigen::MatrixXcd fft_3d;
+        Eigen::MatrixXcf fft_2d;
+        Eigen::MatrixXcf fft_3d;
         Eigen::MatrixXd aoa_est;
         mmfusion::RWStatus rw_lock;
     } typedef ProcOutput;
@@ -44,20 +46,14 @@ namespace mmfusion
         ProcOutput _output;
 
         void _process();
-#ifdef WITH_CUDA
-        void _compute_1d_fft_cuda();
 
-        void _compute_2d_fft_cuda();
-        
-        void _compute_3d_fft_cuda();
-#else
         void _compute_1d_fft();
 
         void _compute_2d_fft();
 
         void _compute_3d_fft();
-#endif
-        void _cfar(Eigen::MatrixXcd &);
+        
+        void _cfar(Eigen::MatrixXcf &);
 
         void _beamforming();
 
@@ -72,8 +68,8 @@ namespace mmfusion
 
         void bindDevice(mmfusion::DCA1000 &);
 
-        bool getData(Eigen::MatrixXcd &, Eigen::MatrixXcd &,
-                     Eigen::MatrixXcd &, Eigen::MatrixXd &);
+        bool getData(Eigen::MatrixXcf &, Eigen::MatrixXcf &,
+                     Eigen::MatrixXcf &, Eigen::MatrixXd &);
     };
 } // namespace mmfusion
 
