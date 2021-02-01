@@ -42,6 +42,7 @@ namespace mmfusion
     Radar::~Radar()
     {
         delete this->_cmd_port_ptr;
+        delete this->_data_port_ptr;
     }
 
     /**
@@ -77,6 +78,7 @@ namespace mmfusion
     {
         for (auto cmd : this->_cfg->radar_cmd_list)
         {
+            // std::cout << cmd << std::endl;
             // wait before testing sensorStart command to radar
             if (std::strcmp(cmd.c_str(), "sensorStart\r\n") == 0)
             {

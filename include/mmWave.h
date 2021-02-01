@@ -35,7 +35,11 @@ namespace mmfusion
     private:
         boost::asio::serial_port *_cmd_port_ptr;
 
+        boost::asio::serial_port *_data_port_ptr;
+
         void _display_properties();
+
+        boost::system::error_code _read_data_from_serial(std::string &);
 
         boost::system::error_code _write_to_serial(std::string &);
 

@@ -7,76 +7,79 @@ namespace mmfusion
         try
         {
             cv::FileStorage system_conf(cfg_path, cv::FileStorage::READ);
-
-            /* Reading from camera calibration file */
-            system_conf["Camera"]["calib"]["savePath"] >> this->cam_calib_conf_path;
-            assert(!this->cam_calib_conf_path.empty());
-            cv::FileStorage calib_res = cv::FileStorage(this->cam_calib_conf_path,
-                                                        cv::FileStorage::READ);
-            calib_res["device"] >> this->cam_path;
-            calib_res["camera_matrix"] >> this->cam_mat;
-            calib_res["dist_coeffs"] >> this->dist_coeffs;
-
-            calib_res.release();
-            /* camera calibration file loaded */
-
-            // check whether calibration file is in sync with system configuration
-            std::string cam_path_sys;
-            system_conf["Camera"]["calib"]["dataSource"]["uri"] >> cam_path_sys;
-            if (std::strcmp(cam_path_sys.c_str(), this->cam_path.c_str()) != 0)
+            system_conf["Camera"]["enable"] >> enable_cam;
+            if (enable_cam == 1)
             {
-                this->cam_path = "UNDEFINED";
-            }
+                /* Reading from camera calibration file */
+                system_conf["Camera"]["calib"]["savePath"] >> this->cam_calib_conf_path;
+                assert(!this->cam_calib_conf_path.empty());
+                cv::FileStorage calib_res = cv::FileStorage(this->cam_calib_conf_path,
+                                                            cv::FileStorage::READ);
+                calib_res["device"] >> this->cam_path;
+                calib_res["camera_matrix"] >> this->cam_mat;
+                calib_res["dist_coeffs"] >> this->dist_coeffs;
 
-            system_conf["Camera"]["install"]["height"] >> this->cam_install_height;
-            system_conf["Camera"]["install"]["pitch"] >> this->cam_install_pitch;
-            this->cam_install_pitch *= DEG2RAD;
+                calib_res.release();
+                /* camera calibration file loaded */
 
-            /* Loading perception network layers and weight file */
-            system_conf["Camera"]["perceptionConfig"]["YOLOPath"]["cfg"] >> this->yolo_cfg;
-            system_conf["Camera"]["perceptionConfig"]["YOLOPath"]["weights"] >> this->yolo_weights;
-
-            /* reading coco names from file */
-            std::string coco_name_path;
-            system_conf["Camera"]["perceptionConfig"]["YOLOPath"]["names"] >> coco_name_path;
-            std::ifstream name_file(coco_name_path);
-            std::string name;
-            while (std::getline(name_file, name))
-            {
-                this->coco_classes.push_back(name);
-            }
-            name_file.close();
-            /* end reading coco names */
-
-            /* assign each class with a color */
-            for (size_t coco_class = 1; coco_class <= this->coco_classes.size(); ++coco_class)
-            {
-                float h, s, v;
-                h = 2 * M_PI * ((float)coco_class / this->coco_classes.size());
-                s = 0.5 * M_1_PI * h;
-                v = 0.5 * M_1_PI * h;
-                cv::Mat3f hsv(cv::Vec3f(h, s, v));
-                cv::Mat3f rgb;
-                cv::cvtColor(hsv, rgb, cv::COLOR_HSV2BGR);
-
-                cv::Scalar color(rgb.data[0], rgb.data[1], rgb.data[2]);
-                this->class_colors.push_back(color);
-            }
-
-            cv::FileNode filter_cfg = system_conf["Camera"]["perceptionConfig"]["classFilter"];
-            if (filter_cfg["enable"].real() == 1)
-            {
-                // save the class indices of enabled classes
-                for (cv::FileNodeIterator node = ++filter_cfg.begin(); node != filter_cfg.end(); ++node)
+                // check whether calibration file is in sync with system configuration
+                std::string cam_path_sys;
+                system_conf["Camera"]["calib"]["dataSource"]["uri"] >> cam_path_sys;
+                if (std::strcmp(cam_path_sys.c_str(), this->cam_path.c_str()) != 0)
                 {
-                    std::string name = (*node).string();
-                    for (size_t i = 0; i < this->coco_classes.size(); i++)
+                    this->cam_path = "UNDEFINED";
+                }
+
+                system_conf["Camera"]["install"]["height"] >> this->cam_install_height;
+                system_conf["Camera"]["install"]["pitch"] >> this->cam_install_pitch;
+                this->cam_install_pitch *= DEG2RAD;
+
+                /* Loading perception network layers and weight file */
+                system_conf["Camera"]["perceptionConfig"]["YOLOPath"]["cfg"] >> this->yolo_cfg;
+                system_conf["Camera"]["perceptionConfig"]["YOLOPath"]["weights"] >> this->yolo_weights;
+
+                /* reading coco names from file */
+                std::string coco_name_path;
+                system_conf["Camera"]["perceptionConfig"]["YOLOPath"]["names"] >> coco_name_path;
+                std::ifstream name_file(coco_name_path);
+                std::string name;
+                while (std::getline(name_file, name))
+                {
+                    this->coco_classes.push_back(name);
+                }
+                name_file.close();
+                /* end reading coco names */
+
+                /* assign each class with a color */
+                for (size_t coco_class = 1; coco_class <= this->coco_classes.size(); ++coco_class)
+                {
+                    float h, s, v;
+                    h = 2 * M_PI * ((float)coco_class / this->coco_classes.size());
+                    s = 0.5 * M_1_PI * h;
+                    v = 0.5 * M_1_PI * h;
+                    cv::Mat3f hsv(cv::Vec3f(h, s, v));
+                    cv::Mat3f rgb;
+                    cv::cvtColor(hsv, rgb, cv::COLOR_HSV2BGR);
+
+                    cv::Scalar color(rgb.data[0], rgb.data[1], rgb.data[2]);
+                    this->class_colors.push_back(color);
+                }
+
+                cv::FileNode filter_cfg = system_conf["Camera"]["perceptionConfig"]["classFilter"];
+                if (filter_cfg["enable"].real() == 1)
+                {
+                    // save the class indices of enabled classes
+                    for (cv::FileNodeIterator node = ++filter_cfg.begin(); node != filter_cfg.end(); ++node)
                     {
-                        std::string class_name = this->coco_classes[i];
-                        if (std::strcmp(name.c_str(), class_name.c_str()) == 0)
+                        std::string name = (*node).string();
+                        for (size_t i = 0; i < this->coco_classes.size(); i++)
                         {
-                            this->valid_classes.push_back(i);
-                            break;
+                            std::string class_name = this->coco_classes[i];
+                            if (std::strcmp(name.c_str(), class_name.c_str()) == 0)
+                            {
+                                this->valid_classes.push_back(i);
+                                break;
+                            }
                         }
                     }
                 }
@@ -137,7 +140,7 @@ namespace mmfusion
         while (std::getline(profile_config, command))
         {
             // skip comments in profile
-            if(command.front() == '%')
+            if (command.front() == '%')
             {
                 continue;
             }

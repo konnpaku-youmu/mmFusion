@@ -61,6 +61,10 @@ set(PROJECT_SOURCES src/main.cc
                     include/ui/mainwindow.h
                     include/ui/mainwindow.ui)
 
+set(TRAFFIC_SOURCES src/traffic_monitoring_demo.cc
+                   src/mmWave.cc
+                   src/utilities.cc)
+
 include_directories(
   include
   include/ui
@@ -69,6 +73,9 @@ include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}
   ${CUDA_INCLUDE_DIRS}
 )
+
+add_library(mmwave SHARED src/mmWave.cc src/utilities.cc)
+target_link_libraries(mmwave ${PROJECT_LIBS})
 
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <opencv_storage>
   <Camera>
-    <enable>0</enable>
+    <enable>1</enable>
     <install>
       <height>2.09</height>
       <pitch>-20.77</pitch>
@@ -38,7 +38,7 @@
     <radar>
       <commandPort>"/dev/ttyACM0"</commandPort>
       <baudRate>115200</baudRate>
-      <profileCfg>"/home/hcrd/Projects/mmFusion/config/1642_profile.cfg"</profileCfg>
+      <profileCfg>"/home/hcrd/Projects/mmFusion/config/6843_traffic_monitoring_70m_MIMO_2D.cfg"</profileCfg>
     </radar>
     <DCA1000>
       <ip>"192.168.33.180"</ip>

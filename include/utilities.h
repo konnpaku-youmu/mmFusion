@@ -64,6 +64,7 @@ namespace mmfusion
         void loadRadarProfile();
 
         /* camera related params */
+        int enable_cam;
         std::string cam_path;
         double cam_install_height;
         double cam_install_pitch;
